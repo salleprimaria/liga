@@ -1,0 +1,1976 @@
+<!DOCTYPE html>
+<html lang="es" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ligas La Salle Primaria</title>
+    <!-- Cargar las librerías de React y Babel para JSX -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Cargar la librería de Tailwind CSS desde un CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .nav-button {
+            @apply flex items-center py-2 px-4 rounded-full text-gray-800 font-medium hover:bg-black hover:bg-opacity-10 transition-all duration-300;
+        }
+        .btn-primary {
+             @apply py-2 px-5 bg-[#101097] text-white font-semibold rounded-lg shadow-md hover:bg-[#001E61] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#101097] transition-all duration-300;
+        }
+        .btn-danger {
+            @apply py-2 px-5 bg-[#CE0E2D] text-white font-semibold rounded-lg shadow-md hover:bg-[#a80b24] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CE0E2D] transition-all duration-300;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+    <div id="root"></div>
+
+    <!-- Cargar los módulos de Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Exportar los módulos a la ventana global para que puedan ser usados en el script de tipo "text/babel"
+        window.firebaseModules = {
+            initializeApp,
+            getAuth,
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            signOut,
+            getFirestore,
+            doc,
+            getDoc,
+            addDoc,
+            setDoc,
+            updateDoc,
+            deleteDoc,
+            onSnapshot,
+            collection,
+            query,
+            where,
+            getDocs,
+            writeBatch,
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, createContext, useContext } = React;
+
+        const HOLIDAY_CTE_DATES = [
+            "2025-09-26", // CTE
+            "2025-10-31", // CTE
+            "2025-11-28", // CTE
+            "2025-12-26", // Vacaciones de Navidad
+            "2026-01-02", // Vacaciones de Navidad
+            "2026-01-09", // Vacaciones de Navidad
+            "2026-01-30", // CTE
+            "2026-02-27", // CTE
+            "2026-03-27", // CTE
+            "2026-04-03", // Vacaciones de Semana Santa
+            "2026-04-10", // Vacaciones de Semana Santa
+            "2026-05-15", // Día del Maestro
+            "2026-05-29", // CTE
+            "2026-06-26", // CTE
+        ];
+
+        const isHolidayOrCTE = (dateString) => {
+            return HOLIDAY_CTE_DATES.includes(dateString);
+        };
+
+        // --- Context and Provider for Data --- 
+        const DataContext = createContext();
+
+        const DataProvider = ({ children, user, appId, isAuthReady }) => {
+            const [tournaments, setTournaments] = useState([]);
+            const [selectedTournamentId, setSelectedTournamentId] = useState('');
+            const [leagues, setLeagues] = useState([]);
+            const [teams, setTeams] = useState([]);
+            const [players, setPlayers] = useState([]);
+            const [matches, setMatches] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+
+            useEffect(() => {
+                if (!isAuthReady || !appId) {
+                    setIsLoading(true);
+                    return;
+                }
+
+                const db = window.firebaseApp.db;
+                const publicDataPath = `artifacts/${appId}/public/data`;
+                const collections = ['tournaments', 'leagues', 'teams', 'players', 'matches'];
+                const setFunctions = { 
+                    tournaments: setTournaments, 
+                    leagues: setLeagues, 
+                    teams: setTeams, 
+                    players: setPlayers, 
+                    matches: setMatches 
+                };
+
+                const unsubscribers = collections.map(col => {
+                    return window.firebaseModules.onSnapshot(window.firebaseModules.collection(db, `${publicDataPath}/${col}`), (snapshot) => {
+                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        if (col === 'tournaments') {
+                            data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                            setFunctions.tournaments(data);
+                            if (data.length > 0 && !selectedTournamentId) {
+                                setSelectedTournamentId(data[0].id);
+                            }
+                        } else {
+                            setFunctions[col](data);
+                        }
+                    });
+                });
+
+                setIsLoading(false);
+
+                return () => unsubscribers.forEach(unsub => unsub());
+            }, [appId, isAuthReady, selectedTournamentId]);
+
+            const value = {
+                tournaments, selectedTournamentId, setSelectedTournamentId,
+                leagues, teams, players, matches,
+                isLoading, setIsLoading,
+                appId, user
+            };
+
+            return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+        };
+
+        const useData = () => useContext(DataContext);
+
+        
+
+        // --- Icon Components ---
+        const PlusIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" /></svg>
+        );
+        const CalendarIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" /></svg>
+        );
+        const TrophyIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M11 6V5a1 1 0 011-1h2a1 1 0 110 2h-1v5a1 1 0 01-1 1h-2a1 1 0 01-1-1V7a1 1 0 011-1zM5 8V7a1 1 0 011-1h2a1 1 0 110 2H6v3a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1h1zM10 2a8 8 0 100 16 8 8 0 000-16zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" /></svg>
+        );
+        const EditIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
+        );
+        const TrashIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+        );
+        const ChevronDownIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+        );
+        const ChevronUpIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+        );
+        const LockIcon = ({ className = 'w-5 h-5' }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2h2a2 2 0 012 2v6a2 2 0 01-2 2H3a2 2 0 01-2-2v-6a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+        );
+
+        const SportIcon = ({ sport }) => {
+            const icons = { 'Fútbol': '⚽️', 'Básquetbol': '🏀', 'Tocho': '🏈', 'Voleibol': '🏐' };
+            return <span className="mr-2 text-2xl">{icons[sport] || ''}</span>;
+        };
+
+        const Modal = ({ show, message, onClose }) => {
+            if (!show) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center border-t-4 border-[#101097]">
+                        <p className="text-gray-800 dark:text-white text-lg mb-6">{message}</p>
+                        <button onClick={onClose} className="btn-primary w-full">Aceptar</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const StandingsTable = ({ standings, onViewTeamDetails }) => {
+            if (standings.length === 0) {
+                return <p className="text-center text-gray-500 dark:text-gray-400 py-4">No hay datos de clasificación para esta liga.</p>;
+            }
+            return (
+                <div className="overflow-x-auto rounded-xl shadow-lg bg-white dark:bg-gray-800">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-200 uppercase tracking-wider">Equipo</th>
+                                {
+                                    ['PJ', 'G', 'E', 'P', 'GF', 'GC', 'DG', 'Pts'].map(header => (
+                                        <th key={header} className="px-4 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-200 uppercase tracking-wider">{header}</th>
+                                    ))
+                                }
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            {standings.map((team, index) => (
+                                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                        <div className="flex items-center cursor-pointer" onClick={() => onViewTeamDetails(team.id)}>
+                                            <img src={team.logoUrl} alt={`Logo de ${team.teamName}`} className="w-6 h-6 rounded-full mr-3 shadow-sm" />
+                                            {team.teamName}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-600 dark:text-gray-300">{team.played}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-600 dark:text-gray-300">{team.wins}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-600 dark:text-gray-300">{team.draws}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-600 dark:text-gray-300">{team.losses}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-600 dark:text-gray-300">{team.goalsFor}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-600 dark:text-gray-300">{team.goalsAgainst}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-600 dark:text-gray-300">{team.goalDifference}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-center font-bold text-gray-900 dark:text-white">{team.points}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        };
+
+        const TopScorersTable = ({ scorers }) => {
+            if (scorers.length === 0) {
+                return <p className="text-center text-gray-500 dark:text-gray-400 py-4">No hay anotadores registrados.</p>;
+            }
+            return (
+                <div className="overflow-x-auto rounded-xl shadow-lg bg-white dark:bg-gray-800">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-200 uppercase tracking-wider">Jugador</th>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-200 uppercase tracking-wider">Equipo</th>
+                                <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-200 uppercase tracking-wider">Goles</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            {scorers.map((scorer, index) => (
+                                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{scorer.playerName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{scorer.teamName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-center text-gray-900 dark:text-white">{scorer.goals}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        };
+
+        const ResultsList = ({ matches, getTeamName, getTeamLogo, onMatchClick, onViewTeamDetails }) => {
+            const recentMatches = matches.filter(m => m.scoreHome !== null).sort((a, b) => new Date(b.date) - new Date(a.date));
+            if (recentMatches.length === 0) {
+                return <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">No hay resultados recientes.</p>;
+            }
+            return (
+                <div className="space-y-3 mt-4">
+                    {recentMatches.map(match => (
+                        <div key={match.id} onClick={() => onMatchClick(match)} className="bg-white dark:bg-gray-800/70 p-3 rounded-lg hover:shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-all duration-200 shadow-md">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(match.date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <div className="flex items-center justify-between mt-1">
+                                <div className="flex-1 text-sm font-bold flex items-center cursor-pointer" onClick={() => onViewTeamDetails(match.homeTeamId)}>
+                                    <img src={getTeamLogo(match.homeTeamId)} className="w-5 h-5 rounded-full mr-2 shadow-sm" />
+                                    {getTeamName(match.homeTeamId)}
+                                </div>
+                                <span className="text-lg font-extrabold mx-3 text-[#101097] dark:text-blue-300">{match.scoreHome} - {match.scoreAway}</span>
+                                <div className="flex-1 text-sm font-bold flex items-center justify-end text-right cursor-pointer" onClick={() => onViewTeamDetails(match.awayTeamId)}>
+                                    {getTeamName(match.awayTeamId)}
+                                    <img src={getTeamLogo(match.awayTeamId)} className="w-5 h-5 rounded-full ml-2 shadow-sm" />
+                                </div>
+                            </div>
+                            {match.status === 'Anulado' && <p className="text-center text-xs text-[#CE0E2D] dark:text-red-400 font-bold mt-1">PARTIDO ANULADO</p>}
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const MatchDetailsModal = ({ match, onClose, getPlayerName, getTeamName }) => {
+            if (!match) return null;
+            const homeScorers = match.scorers?.filter(s => s.teamId === match.homeTeamId) || [];
+            const awayScorers = match.scorers?.filter(s => s.teamId === match.awayTeamId) || [];
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full text-left border-t-4 border-[#101097]" onClick={e => e.stopPropagation()}>
+                        <div className="text-center mb-4">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(match.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <h3 className="text-2xl font-bold">{getTeamName(match.homeTeamId)} <span className="text-[#101097] dark:text-blue-300">{match.scoreHome} - {match.scoreAway}</span> {getTeamName(match.awayTeamId)}</h3>
+                        </div>
+                        <h4 className="text-lg font-semibold mb-2 border-b pb-1">Anotadores</h4>
+                        {match.scorers?.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <h5 className="font-bold">{getTeamName(match.homeTeamId)}</h5>
+                                    <ul className="list-disc pl-5 space-y-1">
+                                        {homeScorers.map((scorer, i) => <li key={i}>{getPlayerName(scorer.playerId)} ({scorer.count})</li>)}
+                                    </ul>
+                                    {homeScorers.length === 0 && <p className="text-sm text-gray-400">Sin anotadores.</p>}
+                                </div>
+                                <div>
+                                    <h5 className="font-bold">{getTeamName(match.awayTeamId)}</h5>
+                                    <ul className="list-disc pl-5 space-y-1">
+                                        {awayScorers.map((scorer, i) => <li key={i}>{getPlayerName(scorer.playerId)} ({scorer.count})</li>)}
+                                    </ul>
+                                     {awayScorers.length === 0 && <p className="text-sm text-gray-400">Sin anotadores.</p>}
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-center text-gray-500 dark:text-gray-400 py-3">No se registraron anotadores para este partido.</p>
+                        )}
+                        <div className="text-right mt-6">
+                            <button onClick={onClose} className="btn-primary">Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const EditTeamModal = ({ team, onClose, onSave, showMessage }) => {
+            if (!team) return null;
+
+            const [name, setName] = useState(team.name);
+            const [logoUrl, setLogoUrl] = useState(team.logoUrl);
+
+            const handleSave = () => {
+                if (!name.trim() || !logoUrl.trim()) {
+                    showMessage("El nombre y la URL del logo no pueden estar vacíos.");
+                    return;
+                }
+                onSave(team.id, name, logoUrl);
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full text-left border-t-4 border-[#101097]">
+                        <h3 className="text-xl font-bold mb-4">Editar Equipo</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre del Equipo</label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className="w-full mt-1 p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">URL del Logo</label>
+                                <input
+                                    type="text"
+                                    value={logoUrl}
+                                    onChange={(e) => setLogoUrl(e.target.value)}
+                                    className="w-full mt-1 p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end space-x-2 mt-6">
+                            <button onClick={onClose} className="py-2 px-5 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-semibold rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-all">Cancelar</button>
+                            <button onClick={handleSave} className="btn-primary">Guardar Cambios</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AddPlayersModal = ({ team, onClose, onAdd, showMessage }) => {
+            if (!team) return null;
+
+            const [playerNames, setPlayerNames] = useState('');
+
+            const handleAdd = () => {
+                const names = playerNames.split('\n').map(name => name.trim()).filter(name => name);
+                if (names.length === 0) {
+                    showMessage("Por favor, introduce al menos un nombre de jugador.");
+                    return;
+                }
+                onAdd(team.id, names);
+                setPlayerNames('');
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full text-left border-t-4 border-[#101097]">
+                        <h3 className="text-xl font-bold mb-2">Añadir Jugadores a <span className="text-[#101097]">{team.name}</span></h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Escribe un nombre por línea. Puedes pegar una lista desde Excel o un editor de texto.</p>
+                        <textarea
+                            value={playerNames}
+                            onChange={(e) => setPlayerNames(e.target.value)}
+                            rows="10"
+                            className="w-full mt-1 p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="Juan Pérez\nMaria García\n..."
+                        />
+                        <div className="flex justify-end space-x-2 mt-6">
+                            <button onClick={onClose} className="py-2 px-5 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-semibold rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-all">Cancelar</button>
+                            <button onClick={handleAdd} className="btn-primary">Añadir Jugadores</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const MatchesView = ({ matches, getTeamName, appId, db, showMessage, leagues, teams, players, getLeagueName, getPlayersByTeam, selectedDateFilter, selectedLeagueFilter }) => {
+            const [selectedMatch, setSelectedMatch] = useState(null);
+            const [scoreHome, setScoreHome] = useState(0);
+            const [scoreAway, setScoreAway] = useState(0);
+            const [scorers, setScorers] = useState([]);
+            const [isEditing, setIsEditing] = useState(false);
+
+            const handleEditMatch = (match) => {
+                setSelectedMatch(match);
+                setScoreHome(match.scoreHome !== null ? match.scoreHome : 0);
+                setScoreAway(match.scoreAway !== null ? match.scoreAway : 0);
+                setScorers(match.scorers || []);
+                setIsEditing(true);
+            };
+
+            const handleSaveMatch = async () => {
+                if (!selectedMatch) return;
+                try {
+                    const { doc, setDoc } = window.firebaseModules;
+                    await setDoc(doc(db, `artifacts/${appId}/public/data/matches`, selectedMatch.id), {
+                        ...selectedMatch,
+                        scoreHome: parseInt(scoreHome, 10),
+                        scoreAway: parseInt(scoreAway, 10),
+                        scorers,
+                    });
+                    setIsEditing(false);
+                    setSelectedMatch(null);
+                    showMessage("Partido actualizado con éxito.");
+                } catch (e) {
+                    console.error("Error al guardar el partido:", e);
+                    showMessage("Error al guardar el partido.");
+                }
+            };
+
+            const handleAddScorer = (teamId) => {
+                setScorers(prev => [...prev, { playerId: '', teamId, count: 1 }]);
+            };
+
+            const handleScorerChange = (index, field, value) => {
+                const newScorers = [...scorers];
+                newScorers[index][field] = value;
+                setScorers(newScorers);
+            };
+
+            const handleRemoveScorer = (index) => {
+                setScorers(prev => prev.filter((_, i) => i !== index));
+            };
+
+            const handleNullifyMatch = async () => {
+                if (!selectedMatch) return;
+                if (confirm("¿Estás seguro de que quieres anular este partido? Se registrará como un empate 0-0 y se borrarán los goleadores.")) {
+                    try {
+                        const { doc, setDoc } = window.firebaseModules;
+                        await setDoc(doc(db, `artifacts/${appId}/public/data/matches`, selectedMatch.id), {
+                            ...selectedMatch,
+                            scoreHome: 0,
+                            scoreAway: 0,
+                            scorers: [],
+                            status: 'Anulado'
+                        });
+                        setIsEditing(false);
+                        setSelectedMatch(null);
+                        showMessage("Partido anulado con éxito (Empate 0-0).");
+                    } catch (e) {
+                        console.error("Error al anular el partido:", e);
+                        showMessage("Error al anular el partido.");
+                    }
+                }
+            };
+
+            const filteredMatches = matches.filter(match => {
+                const dateMatch = selectedDateFilter ? match.date === selectedDateFilter : true;
+                const leagueMatch = selectedLeagueFilter ? match.leagueId === selectedLeagueFilter : true;
+                return dateMatch && leagueMatch;
+            });
+
+            const sortedMatches = [...filteredMatches].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            return (
+                <div className="space-y-4">
+                    {isEditing && selectedMatch ? (
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                            <h4 className="text-xl font-bold">Editar Partido</h4>
+                            <p className="text-gray-500 dark:text-gray-400">
+                                {getLeagueName(selectedMatch.leagueId)}
+                                <br />
+                                {getTeamName(selectedMatch.homeTeamId)} vs {getTeamName(selectedMatch.awayTeamId)} - {selectedMatch.date}
+                            </p>
+                            <div className="flex items-center space-x-4">
+                                <label className="text-sm font-medium">Marcador Local:</label>
+                                <input type="number" min="0" value={scoreHome} onChange={(e) => setScoreHome(Math.max(0, parseInt(e.target.value, 10)))} className="w-20 p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                <label className="text-sm font-medium">Marcador Visitante:</label>
+                                <input type="number" min="0" value={scoreAway} onChange={(e) => setScoreAway(Math.max(0, parseInt(e.target.value, 10)))} className="w-20 p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+                            </div>
+                            <div className="space-y-2">
+                                <h5 className="text-lg font-semibold">Goleadores</h5>
+                                <div className="flex space-x-2">
+                                    <button onClick={() => handleAddScorer(selectedMatch.homeTeamId)} className="btn-primary text-sm py-1 px-3">+ Goleador Local</button>
+                                    <button onClick={() => handleAddScorer(selectedMatch.awayTeamId)} className="btn-primary text-sm py-1 px-3">+ Goleador Visitante</button>
+                                </div>
+                                {scorers.map((scorer, index) => (
+                                    <div key={index} className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+                                        <select value={scorer.playerId} onChange={(e) => handleScorerChange(index, 'playerId', e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex-1">
+                                            <option value="">Selecciona un jugador</option>
+                                            {getPlayersByTeam(scorer.teamId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                        <input type="number" min="1" value={scorer.count} onChange={(e) => handleScorerChange(index, 'count', parseInt(e.target.value, 10))} className="w-16 p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                        <button onClick={() => handleRemoveScorer(index)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><TrashIcon /></button>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex justify-end space-x-2 pt-4 border-t dark:border-gray-700">
+                                <button onClick={handleNullifyMatch} className="btn-danger">Anular (0-0)</button>
+                                <button onClick={() => setIsEditing(false)} className="py-2 px-5 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-semibold rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-all duration-300">Cancelar</button>
+                                <button onClick={handleSaveMatch} className="btn-primary">Guardar Cambios</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {leagues.length === 0 ? (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No hay partidos para mostrar. Por favor, crea las ligas y genera el calendario.</p>
+                            ) : (
+                                sortedMatches.map(match => (
+                                    <div key={match.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg flex items-center justify-between hover:shadow-xl transition-all duration-300">
+                                        <div>
+                                            <p className="font-semibold text-lg flex items-center text-[#101097] dark:text-blue-300">
+                                                <SportIcon sport={leagues.find(l => l.id === match.leagueId)?.sport} />
+                                                {getLeagueName(match.leagueId)}
+                                            </p>
+                                            <p className="text-gray-500 dark:text-gray-400 text-sm">{match.date}</p>
+                                            <p className="text-gray-900 dark:text-white font-bold text-xl mt-1">
+                                                {getTeamName(match.homeTeamId)} vs {getTeamName(match.awayTeamId)}
+                                            </p>
+                                            {match.status === 'Anulado' && <p className="text-[#CE0E2D] dark:text-red-400 font-bold text-sm mt-1">PARTIDO ANULADO</p>}
+                                            {match.scoreHome !== null && <p className="text-gray-700 dark:text-gray-300 font-bold text-lg">Marcador: {match.scoreHome} - {match.scoreAway}</p>}
+                                        </div>
+                                        <button onClick={() => handleEditMatch(match)} className="text-[#101097] hover:text-[#001E61] dark:text-blue-300 dark:hover:text-blue-200 p-2 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-colors"><EditIcon /></button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const LeagueCard = ({ league, teams, players, appId, db, showMessage, onMatchDayChange, onEditTeam, onAddPlayers, onAddTeam, onDeleteTeam }) => {
+            const [isExpanded, setIsExpanded] = useState(false);
+            const dayOptions = [ { value: 1, label: 'Lunes' }, { value: 2, label: 'Martes' }, { value: 3, label: 'Miércoles' }, { value: 4, label: 'Jueves' }, { value: 5, label: 'Viernes' }, { value: 6, label: 'Sábado' }, { value: 0, label: 'Domingo' } ];
+
+            const handleDeletePlayer = async (playerId) => {
+                if (confirm("¿Estás seguro de que quieres eliminar a este jugador?")) {
+                    const { doc, deleteDoc } = window.firebaseModules;
+                    try {
+                        await deleteDoc(doc(db, `artifacts/${appId}/public/data/players`, playerId));
+                        showMessage("Jugador eliminado con éxito.");
+                    } catch (e) { console.error("Error al eliminar jugador:", e); showMessage("Error al eliminar jugador."); }
+                }
+            };
+
+            const handleAdd = () => {
+                if (teams.length >= 6) {
+                    showMessage("Una liga no puede tener más de 6 equipos.");
+                    return;
+                }
+                onAddTeam(league.id);
+            };
+
+            const handleDelete = (teamId) => {
+                if (teams.length <= 4) {
+                    showMessage("Una liga debe tener al menos 4 equipos.");
+                    return;
+                }
+                onDeleteTeam(teamId);
+            };
+
+            return (
+                <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl shadow-inner transition-all duration-300">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                            <SportIcon sport={league.sport} />
+                            {league.name}
+                        </h4>
+                        <div className="flex items-center space-x-2">
+                            <select value={league.matchDay ?? ''} onChange={(e) => onMatchDayChange(league.id, e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" onClick={(e) => e.stopPropagation()}>
+                                <option value="">-- Asignar Día --</option>
+                                {dayOptions.map(day => <option key={day.value} value={day.value}>{day.label}</option>)}
+                            </select>
+                            <button onClick={() => setIsExpanded(!isExpanded)} className="text-[#101097] hover:text-[#001E61] dark:text-blue-300 dark:hover:text-blue-200 p-1">{isExpanded ? <ChevronUpIcon className="w-6 h-6" /> : <ChevronDownIcon className="w-6 h-6" />}</button>
+                        </div>
+                    </div>
+                    {isExpanded && (
+                        <div className="mt-4 space-y-4">
+                            <div className="border-t dark:border-gray-700 pt-4">
+                                <button onClick={handleAdd} className="btn-primary w-full flex items-center justify-center disabled:bg-gray-400" disabled={teams.length >= 6}>
+                                    <PlusIcon className="w-5 h-5 mr-2" />Añadir Equipo
+                                </button>
+                            </div>
+                            {teams.map(team => (
+                                <div key={team.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-2">
+                                            <img src={team.logoUrl} alt={`Logo de ${team.name}`} className="w-8 h-8 rounded-full shadow-md" />
+                                            <span className="font-medium">{team.name}</span>
+                                            <button onClick={() => onEditTeam(team)} className="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                                                <EditIcon className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => handleDelete(team.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors disabled:text-gray-400 disabled:hover:bg-transparent" disabled={teams.length <= 4}>
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <button onClick={() => onAddPlayers(team)} className="btn-primary text-xs py-1 px-3">Añadir Jugadores</button>
+                                    </div>
+                                    <ul className="list-disc pl-6 text-gray-600 dark:text-gray-300 space-y-1">
+                                        {players.filter(p => p.teamId === team.id).length > 0 ? (
+                                            players.filter(p => p.teamId === team.id).map(player => (
+                                                <li key={player.id} className="flex items-center justify-between">
+                                                    <span>{player.name}</span>
+                                                    <button onClick={() => handleDeletePlayer(player.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                                </li>
+                                            ))
+                                        ) : (
+                                            <li>No hay jugadores en este equipo.</li>
+                                        )}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const AppContent = ({ user, handleLogin, handleLogout, email, setEmail, password, setPassword, showMessage, isAuthReady }) => {
+            const {
+                tournaments, selectedTournamentId, setSelectedTournamentId,
+                leagues, teams, players, matches,
+                isLoading, setIsLoading, appId
+            } = useData();
+
+            const [view, setView] = useState('standings');
+            const [selectedDateFilter, setSelectedDateFilter] = useState('');
+            const [selectedLeagueFilter, setSelectedLeagueFilter] = useState('');
+            const [selectedStandingsLeagueFilter, setSelectedStandingsLeagueFilter] = useState('');
+            const [upcomingMatchesDate, setUpcomingMatchesDate] = useState('');
+            const [refereeMatchDate, setRefereeMatchDate] = useState('');
+            const [scheduleStartDate, setScheduleStartDate] = useState('');
+            const [scheduleEndDate, setScheduleEndDate] = useState('');
+            const [matchDetails, setMatchDetails] = useState(null);
+            const [editingTeam, setEditingTeam] = useState(null);
+            const [addingPlayersTeam, setAddingPlayersTeam] = useState(null);
+            const [postponeMatchDate, setPostponeMatchDate] = useState('');
+            const [selectedTeamIdForDetail, setSelectedTeamIdForDetail] = useState(null);
+            const [rosterSport, setRosterSport] = useState('');
+
+            const handleViewTeamDetails = (teamId) => {
+                setSelectedTeamIdForDetail(teamId);
+                setView('teamDetail');
+            };
+
+            const handleMatchClick = (match) => { setMatchDetails(match); };
+
+            const getTeamName = useCallback((teamId) => teams.find(t => t.id === teamId)?.name || 'Equipo Desconocido', [teams]);
+            const getTeamLogo = useCallback((teamId) => teams.find(t => t.id === teamId)?.logoUrl || '', [teams]);
+            const getPlayerName = useCallback((playerId) => players.find(p => p.id === playerId)?.name || 'Jugador Desconocido', [players]);
+            
+            const handleMatchDayChange = async (leagueId, day) => {
+                if (!user || !appId) return;
+                const { doc, updateDoc } = window.firebaseModules;
+                try {
+                    await updateDoc(doc(window.firebaseApp.db, `artifacts/${appId}/public/data/leagues`, leagueId), { matchDay: day ? parseInt(day, 10) : null });
+                } catch (e) { console.error("Error updating match day:", e); showMessage("Error al actualizar el día."); }
+            };
+
+            const handleEditTeam = (team) => {
+                setEditingTeam(team);
+            };
+
+            const handleCloseEditTeam = () => {
+                setEditingTeam(null);
+            };
+
+            const handleUpdateTeam = async (teamId, name, logoUrl) => {
+                if (!user || !appId) return;
+                const { doc, updateDoc } = window.firebaseModules;
+                try {
+                    await updateDoc(doc(window.firebaseApp.db, `artifacts/${appId}/public/data/teams`, teamId), { name, logoUrl });
+                    showMessage("Equipo actualizado con éxito.");
+                    handleCloseEditTeam();
+                } catch (e) {
+                    console.error("Error updating team:", e); showMessage("Error al actualizar el equipo.");
+                }
+            };
+
+            const handleOpenAddPlayersModal = (team) => {
+                setAddingPlayersTeam(team);
+            };
+
+            const handleAddMultiplePlayers = async (teamId, names) => {
+                if (!user || !appId) return;
+                const { db } = window.firebaseApp;
+                const { doc, setDoc } = window.firebaseModules;
+                
+                const playerPromises = names.map(name => {
+                    const playerId = crypto.randomUUID();
+                    return setDoc(doc(db, `artifacts/${appId}/public/data/players`, playerId), { id: playerId, name, teamId });
+                });
+
+                try {
+                    await Promise.all(playerPromises);
+                    showMessage(`${names.length} jugador(es) añadido(s) con éxito.`);
+                    setAddingPlayersTeam(null); // Close modal on success
+                } catch (e) {
+                    console.error("Error adding multiple players:", e);
+                    showMessage("Error al añadir los jugadores.");
+                }
+            };
+
+            const handleAddTeam = async (leagueId) => {
+                if (!user || !appId) return;
+                const { db } = window.firebaseApp;
+                const { doc, setDoc } = window.firebaseModules;
+                const teamId = crypto.randomUUID();
+                const newTeam = {
+                    id: teamId,
+                    name: `Nuevo Equipo ${teams.filter(t => t.leagueId === leagueId).length + 1}`,
+                    leagueId,
+                    logoUrl: `https://placehold.co/100x100/A0A0A0/FFF?text=N`
+                };
+                try {
+                    await setDoc(doc(db, `artifacts/${appId}/public/data/teams`, teamId), newTeam);
+                    showMessage("Equipo añadido con éxito.");
+                } catch (e) {
+                    console.error("Error adding team:", e);
+                    showMessage("Error al añadir el equipo.");
+                }
+            };
+
+            const handleDeleteTeam = async (teamId) => {
+                if (!user || !appId) return;
+                if (!confirm("¿Estás seguro de que quieres eliminar este equipo? Se borrarán también sus jugadores y partidos asociados.")) return;
+                
+                const { db } = window.firebaseApp;
+                const { collection, query, where, getDocs, doc, deleteDoc, writeBatch } = window.firebaseModules;
+
+                try {
+                    const batch = writeBatch(db);
+
+                    // Delete players in the team
+                    const playersQuery = query(collection(db, `artifacts/${appId}/public/data/players`), where("teamId", "==", teamId));
+                    const playersSnapshot = await getDocs(playersQuery);
+                    playersSnapshot.forEach(playerDoc => batch.delete(playerDoc.ref));
+
+                    // Delete matches involving the team
+                    const homeMatchesQuery = query(collection(db, `artifacts/${appId}/public/data/matches`), where("homeTeamId", "==", teamId));
+                    const awayMatchesQuery = query(collection(db, `artifacts/${appId}/public/data/matches`), where("awayTeamId", "==", teamId));
+                    const [homeMatchesSnapshot, awayMatchesSnapshot] = await Promise.all([getDocs(homeMatchesQuery), getDocs(awayMatchesQuery)]);
+                    homeMatchesSnapshot.forEach(matchDoc => batch.delete(matchDoc.ref));
+                    awayMatchesSnapshot.forEach(matchDoc => batch.delete(matchDoc.ref));
+
+                    // Delete the team itself
+                    batch.delete(doc(db, `artifacts/${appId}/public/data/teams`, teamId));
+
+                    await batch.commit();
+                    showMessage("Equipo y datos asociados eliminados con éxito.");
+                } catch (e) {
+                    console.error("Error deleting team:", e);
+                    showMessage("Error al eliminar el equipo y sus datos asociados.");
+                }
+            };
+
+            const handleDeleteTournament = async () => {
+                if (!selectedTournamentId) {
+                    showMessage("Por favor, selecciona un torneo para eliminar.");
+                    return;
+                }
+
+                if (confirm(`¿Estás seguro de que quieres eliminar el torneo '${tournaments.find(t => t.id === selectedTournamentId)?.name}' y TODOS sus datos (ligas, equipos, jugadores, partidos)? Esta acción es irreversible.`)) {
+                    setIsLoading(true);
+                    const { db } = window.firebaseApp;
+                    const { collection, query, where, getDocs, doc, deleteDoc } = window.firebaseModules;
+                    
+                    try {
+                        const leaguesQuery = query(collection(db, `artifacts/${appId}/public/data/leagues`), where("tournamentId", "==", selectedTournamentId));
+                        const leaguesSnapshot = await getDocs(leaguesQuery);
+                        const leagueIds = leaguesSnapshot.docs.map(d => d.id);
+
+                        if (leagueIds.length > 0) {
+                            const teamsQuery = query(collection(db, `artifacts/${appId}/public/data/teams`), where("leagueId", "in", leagueIds));
+                            const teamsSnapshot = await getDocs(teamsQuery);
+                            const teamIds = teamsSnapshot.docs.map(d => d.id);
+
+                            if (teamIds.length > 0) {
+                                const playersQuery = query(collection(db, `artifacts/${appId}/public/data/players`), where("teamId", "in", teamIds));
+                                const playersSnapshot = await getDocs(playersSnapshot);
+                                await Promise.all(playersSnapshot.docs.map(d => deleteDoc(d.ref)));
+                            }
+                            await Promise.all(teamsSnapshot.docs.map(d => deleteDoc(d.ref)));
+
+                            const matchesQuery = query(collection(db, `artifacts/${appId}/public/data/matches`), where("leagueId", "in", leagueIds));
+                            const matchesSnapshot = await getDocs(matchesQuery);
+                            await Promise.all(matchesSnapshot.docs.map(d => deleteDoc(d.ref)));
+                        }
+                        
+                        await Promise.all(leaguesSnapshot.docs.map(d => deleteDoc(d.ref)));
+
+                        await deleteDoc(doc(db, `artifacts/${appId}/public/data/tournaments`, selectedTournamentId));
+
+                        showMessage("Torneo eliminado con éxito.");
+                    } catch (e) {
+                        console.error("Error deleting tournament:", e);
+                        showMessage("Error al eliminar el torneo.");
+                    } finally {
+                        setIsLoading(false);
+                    }
+                }
+            };
+
+            const handleDeleteSchedule = async (visibleLeagueIds) => {
+                if (confirm("¿Estás seguro de que quieres borrar TODO el calendario para el torneo actual? Esta acción no se puede deshacer.")) {
+                    if (!user || !appId || visibleLeagueIds.length === 0) return;
+                    setIsLoading(true);
+                    const { db } = window.firebaseApp;
+                    const { collection, getDocs, query, where, deleteDoc } = window.firebaseModules;
+                    try {
+                        const q = query(collection(db, `artifacts/${appId}/public/data/matches`), where("leagueId", "in", visibleLeagueIds));
+                        const existingMatches = await getDocs(q);
+                        console.log(`handleDeleteSchedule: Found ${existingMatches.docs.length} matches to delete.`); // Added log
+                        if (existingMatches.docs.length > 0) {
+                            await Promise.all(existingMatches.docs.map(matchDoc => deleteDoc(matchDoc.ref)));
+                            showMessage("Calendario del torneo actual borrado.");
+                        } else {
+                            showMessage("No se encontraron partidos para borrar en el calendario actual."); // Added message for no matches
+                        }
+                    } catch (e) { console.error("Error deleting schedule:", e); showMessage("Error al borrar el calendario: " + e.message); } 
+                    setIsLoading(false);
+                }
+            };
+
+            const handlePostponeMatchday = async (dateToPostpone, leagues) => {
+                if (!user || !appId || !dateToPostpone) {
+                    showMessage("Por favor, selecciona una fecha para posponer.");
+                    return;
+                }
+
+                if (!confirm(`¿Estás seguro de que quieres posponer la jornada del ${dateToPostpone}? Esto moverá todos los partidos de esa fecha y las fechas futuras una semana.`)) {
+                    return;
+                }
+
+                setIsLoading(true);
+                const { db } = window.firebaseApp;
+                const { collection, query, where, getDocs, doc, updateDoc, writeBatch } = window.firebaseModules;
+                const matchesRef = collection(db, `artifacts/${appId}/public/data/matches`);
+
+                try {
+                    // Get all matches from the date to postpone onwards
+                    const q = query(matchesRef, where("date", ">=", dateToPostpone));
+                    const snapshot = await getDocs(q);
+
+                    const matchesToUpdate = [];
+                    snapshot.forEach(d => matchesToUpdate.push({ id: d.id, ...d.data() }));
+
+                    // Sort matches by date to ensure correct shifting
+                    matchesToUpdate.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                    const batch = writeBatch(db);
+
+                    for (const match of matchesToUpdate) {
+                        const league = leagues.find(l => l.id === match.leagueId);
+                        if (!league || league.matchDay == null) continue; // Skip if league not found or no matchDay assigned
+
+                        let currentDate = new Date(match.date);
+                        currentDate.setDate(currentDate.getDate() + 7); // Move forward by one week
+
+                        // Find the next available Friday that is not a holiday/CTE
+                        while (isHolidayOrCTE(currentDate.toISOString().split('T')[0]) || currentDate.getDay() !== league.matchDay) {
+                            currentDate.setDate(currentDate.getDate() + 1);
+                        }
+                        
+                        batch.update(doc(matchesRef, match.id), { date: currentDate.toISOString().split('T')[0] });
+                    }
+
+                    await batch.commit();
+                    showMessage(`Jornada del ${dateToPostpone} pospuesta con éxito.`);
+                } catch (e) {
+                    console.error("Error postponing matchday:", e);
+                    showMessage("Error al posponer la jornada.");
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const createLeaguesAndTeams = async () => {
+                if (!user || !appId) return;
+                const tournamentName = prompt(`Introduce un nombre para el nuevo torneo:`, `Torneo Primaria ${new Date().getFullYear()}-${new Date().getFullYear() + 1}`);
+                if (!tournamentName) return;
+
+                setIsLoading(true);
+                const { db } = window.firebaseApp;
+                const { collection, doc, setDoc } = window.firebaseModules;
+                
+                const leaguesData = [
+                    { name: "Futbol 1ro y 2do de Primaria", sport: "Fútbol", grades: "1ro y 2do", matchTime: "9:00-10:00" },
+                    { name: "Basquetbol 1ro y 2do de Primaria", sport: "Básquetbol", grades: "1ro y 2do", matchTime: "9:00-10:00" },
+                    { name: "Futbol 3ro y 4to de Primaria", sport: "Fútbol", grades: "3ro y 4to", matchTime: "8:00-9:00" },
+                    { name: "Basquetbol 3ro y 4to de Primaria", sport: "Básquetbol", grades: "3ro y 4to", matchTime: "8:00-9:00" },
+                    { name: "Futbol 5to y 6to de Primaria", sport: "Fútbol", grades: "5to y 6to", matchTime: "7:00-8:00" },
+                    { name: "Basquetbol 5to y 6to de Primaria", sport: "Básquetbol", grades: "5to y 6to", matchTime: "7:00-8:00" },
+                ];
+
+                const tournamentId = crypto.randomUUID();
+                const newTournament = { id: tournamentId, name: tournamentName, createdAt: new Date().toISOString() };
+
+                try {
+                    await setDoc(doc(db, `artifacts/${appId}/public/data/tournaments`, tournamentId), newTournament);
+
+                    for (const leagueData of leaguesData) {
+                        const leagueId = crypto.randomUUID();
+                        await setDoc(doc(db, `artifacts/${appId}/public/data/leagues`, leagueId), { 
+                            id: leagueId, 
+                            tournamentId,
+                            matchDay: 5, // Default to Friday
+                            ...leagueData 
+                        });
+                        const teamLogos = {
+                            "Futbol 1ro y 2do de Primaria": [
+                                { name: "Club América", logo: "https://logodownload.org/wp-content/uploads/2017/02/club-america-logo-escudo.png" },
+                                { name: "Chivas Guadalajara", logo: "https://logodownload.org/wp-content/uploads/2017/02/chivas-guadalajara-logo-escudo.png" },
+                                { name: "Cruz Azul", logo: "https://logodownload.org/wp-content/uploads/2017/02/cruz-azul-logo-escudo.png" },
+                                { name: "Tigres UANL", logo: "https://logodownload.org/wp-content/uploads/2017/02/tigres-uanl-logo-escudo.png" },
+                            ],
+                            "Futbol 3ro y 4to de Primaria": [
+                                { name: "Manchester United", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/1200px-Manchester_United_FC_crest.svg.png" },
+                                { name: "Liverpool FC", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/1200px-Liverpool_FC.svg.png" },
+                                { name: "Chelsea FC", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/1200px-Chelsea_FC.svg.png" },
+                                { name: "Arsenal FC", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/1200px-Arsenal_FC.svg.png" },
+                            ],
+                            "Futbol 5to y 6to de Primaria": [
+                                { name: "Real Madrid", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/1200px-Real_Madrid_CF.svg.png" },
+                                { name: "FC Barcelona", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/1200px-FC_Barcelona_%28crest%29.svg.png" },
+                                { name: "Atletico Madrid", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/f/f4/Atletico_Madrid_2017_logo.svg/1200px-Atletico_Madrid_2017_logo.svg.png" },
+                                { name: "Valencia CF", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/c/c9/Valencia_CF_logo.svg/1200px-Valencia_CF_logo.svg.png" },
+                            ],
+                            "Basquetbol 1ro y 2do de Primaria": [
+                                { name: "Chiapas", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Coat_of_arms_of_Chiapas.svg/800px-Coat_of_arms_of_Chiapas.svg.png" },
+                                { name: "Monterrey", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Coat_of_arms_of_Nuevo_Le%C3%B3n.svg/800px-Coat_of_arms_of_Nuevo_Le%C3%B3n.svg.png" },
+                                { name: "Jalisco", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Escudo_de_Jalisco.svg/800px-Escudo_de_Jalisco.svg.png" },
+                                { name: "Cd Mexico", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Seal_of_Mexico_City.svg/800px-Seal_of_Mexico_City.svg.png" },
+                            ],
+                            "Basquetbol 3ro y 4to de Primaria": [
+                                { name: "Dallas", logo: "https://loodibee.com/wp-content/uploads/Dallas-Mavericks-logo.png" },
+                                { name: "Lakers", logo: "https://loodibee.com/wp-content/uploads/Los-Angeles-Lakers-logo.png" },
+                                { name: "Chicago", logo: "https://loodibee.com/wp-content/uploads/Chicago-Bulls-logo.png" },
+                                { name: "Toronto", logo: "https://loodibee.com/wp-content/uploads/Toronto-Raptors-logo.png" },
+                            ],
+                            "Basquetbol 5to y 6to de Primaria": [
+                                { name: "Brasil", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Brazil_national_basketball_team_logo.svg/800px-Brazil_national_basketball_team_logo.svg.png" },
+                                { name: "Francia", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/France_national_basketball_team_logo.svg/800px-France_national_basketball_team_logo.svg.png" },
+                                { name: "Mexico", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Mexico_national_basketball_team_logo.svg/800px-Mexico_national_basketball_team_logo.svg.png" },
+                                { name: "España", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Spain_national_basketball_team_logo.svg/800px-Spain_national_basketball_team_logo.svg.png" },
+                            ],
+                            // Add more for Tocho/Voleibol if needed, or they will use default placeholder
+                        };
+
+                        const teamsToCreate = teamLogos[leagueData.name] || [
+                            { name: "Equipo 1", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=1` },
+                            { name: "Equipo 2", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=2` },
+                            { name: "Equipo 3", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=3` },
+                            { name: "Equipo 4", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=4` },
+                        ];
+
+                        for (const teamInfo of teamsToCreate) {
+                            const teamId = crypto.randomUUID();
+                            await setDoc(doc(db, `artifacts/${appId}/public/data/teams`, teamId), { 
+                                id: teamId, 
+                                name: teamInfo.name, 
+                                leagueId, 
+                                logoUrl: teamInfo.logo 
+                            });
+                        }
+                    }
+                    showMessage(`Torneo "${tournamentName}" creado con éxito.`);
+                } catch (e) { console.error("Error creating tournament:", e); showMessage("Error al crear el torneo."); }
+                setIsLoading(false);
+            };
+
+            const generateSchedule = async (visibleLeagues, visibleTeams, isInitial) => {
+                console.log("generateSchedule called. isInitial:", isInitial, "scheduleStartDate:", scheduleStartDate, "scheduleEndDate:", scheduleEndDate);
+                if (isInitial && !scheduleStartDate) {
+                    showMessage("Selecciona una fecha de inicio para el calendario base.");
+                    return;
+                }
+
+                setIsLoading(true);
+                const { db } = window.firebaseApp;
+                const { collection, doc, setDoc, getDocs, query, where, deleteDoc } = window.firebaseModules;
+                const matchesRef = collection(db, `artifacts/${appId}/public/data/matches`);
+                const newMatches = [];
+
+                const leaguesWithoutDay = visibleLeagues.filter(l => l.matchDay == null).map(l => l.name).join(', ');
+                if (leaguesWithoutDay) showMessage(`Ligas ignoradas por no tener día asignado: ${leaguesWithoutDay}`);
+
+                try {
+                    const visibleLeagueIds = visibleLeagues.map(l => l.id);
+
+                    if (isInitial) {
+                        const q = query(matchesRef, where("leagueId", "in", visibleLeagueIds));
+                        const existingMatches = await getDocs(q);
+                        await Promise.all(existingMatches.docs.map(matchDoc => deleteDoc(matchDoc.ref)));
+                    }
+
+                    let lastMatchDate = null;
+                    if (!isInitial) {
+                        const q = query(matchesRef, where("leagueId", "in", visibleLeagueIds));
+                        const existingMatches = await getDocs(q);
+                        if (!existingMatches.empty) {
+                            const dates = existingMatches.docs.map(d => new Date(d.data().date));
+                            lastMatchDate = new Date(Math.max.apply(null, dates));
+                        }
+                    }
+
+                    let currentSchedulingDate = lastMatchDate ? new Date(lastMatchDate) : new Date(scheduleStartDate);
+                    if(!lastMatchDate) currentSchedulingDate.setMinutes(currentSchedulingDate.getMinutes() + currentSchedulingDate.getTimezoneOffset());
+
+                    const totalWeeksToGenerate = isInitial ? 35 : 10; // Generate 35 weeks for initial, 10 for extension
+
+                    const leagueOriginalTeams = new Map();
+                    visibleLeagues.forEach(league => {
+                        let teamsForLeague = visibleTeams.filter(team => team.leagueId === league.id);
+                        if (teamsForLeague.length % 2 !== 0) teamsForLeague.push({ id: 'bye', name: 'Descanso' });
+                        leagueOriginalTeams.set(league.id, [...teamsForLeague]);
+                    });
+
+                    for (let week = 0; week < totalWeeksToGenerate; week++) {
+                        if (week > 0) {
+                            currentSchedulingDate.setDate(currentSchedulingDate.getDate() + 7);
+                        }
+                        
+                        const targetDay = 5; // Friday
+                        while (isHolidayOrCTE(currentSchedulingDate.toISOString().split('T')[0]) || currentSchedulingDate.getDay() !== targetDay) {
+                            currentSchedulingDate.setDate(currentSchedulingDate.getDate() + 1);
+                        }
+
+                        if (!isInitial && scheduleEndDate && currentSchedulingDate > new Date(scheduleEndDate)) {
+                            break; 
+                        }
+
+                        const matchDateString = currentSchedulingDate.toISOString().split('T')[0];
+
+                        visibleLeagues.forEach(league => {
+                            if (league.matchDay == null || league.matchDay !== targetDay) { 
+                                return;
+                            }
+                            let leagueTeams = leagueOriginalTeams.get(league.id);
+                            if (!leagueTeams || leagueTeams.length < 2) {
+                                return;
+                            }
+
+                            let currentRoundTeams = [...leagueTeams];
+                            for (let r = 0; r < week; r++) {
+                                currentRoundTeams.splice(1, 0, currentRoundTeams.pop());
+                            }
+
+                            for (let i = 0; i < currentRoundTeams.length / 2; i++) {
+                                const home = currentRoundTeams[i];
+                                const away = currentRoundTeams[currentRoundTeams.length - 1 - i];
+                                if (home.id !== 'bye' && away.id !== 'bye') {
+                                    const newMatch = { id: crypto.randomUUID(), leagueId: league.id, homeTeamId: home.id, awayTeamId: away.id, date: matchDateString, scoreHome: null, scoreAway: null, scorers: [] };
+                                    newMatches.push(newMatch);
+                                }
+                            }
+                        });
+                    }
+
+                    if(newMatches.length > 0) {
+                        await Promise.all(newMatches.map(match => setDoc(doc(matchesRef, match.id), match)));
+                        showMessage(isInitial ? "Calendario base generado." : "Calendario extendido.");
+                    } else {
+                        showMessage("No se generaron nuevos partidos. La fecha de fin podría ser demasiado temprana o no hay ligas válidas.");
+                    }
+
+                } catch (e) { console.error("Error generating schedule:", e); showMessage("Error al generar el calendario."); } 
+                setIsLoading(false);
+            };
+
+            const getLeagueName = (leagueId) => leagues.find(l => l.id === leagueId)?.name || 'Liga Desconocida';
+            const getPlayersByTeam = (teamId) => players.filter(p => p.teamId === teamId);
+
+            const calculateStandings = useCallback((leagueId, visibleTeams, visibleMatches) => {
+                const leagueTeams = visibleTeams.filter(t => t.leagueId === leagueId);
+                const leagueMatches = visibleMatches.filter(m => m.leagueId === leagueId && m.scoreHome !== null);
+                const standingsMap = leagueTeams.reduce((acc, team) => ({ ...acc, [team.id]: { id: team.id, teamName: team.name, logoUrl: team.logoUrl, played: 0, wins: 0, draws: 0, losses: 0, points: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 } }), {});
+
+                leagueMatches.forEach(match => {
+                    const home = standingsMap[match.homeTeamId], away = standingsMap[match.awayTeamId];
+                    if (!home || !away) return;
+                    home.played++; away.played++;
+                    home.goalsFor += match.scoreHome; home.goalsAgainst += match.scoreAway;
+                    away.goalsFor += match.scoreAway; away.goalsAgainst += match.scoreHome;
+                    if (match.scoreHome > match.scoreAway) { home.wins++; away.losses++; home.points += 3; }
+                    else if (match.scoreHome < match.scoreAway) { away.wins++; home.losses++; away.points += 3; }
+                    else { home.draws++; away.draws++; home.points++; away.points++; }
+                    home.goalDifference = home.goalsFor - home.goalsAgainst;
+                    away.goalDifference = away.goalsFor - away.goalsAgainst;
+                });
+                return Object.values(standingsMap).sort((a, b) => b.points - a.points || b.goalDifference - a.goalDifference);
+            }, []);
+
+            const sortLeagues = (a, b) => {
+                const sportOrder = ['Fútbol', 'Básquetbol', 'Tocho', 'Voleibol'];
+                const gradeOrder = [/1ro y 2do|1ro/, /3ro y 4to|3ro/, /5to y 6to|5to/];
+
+                const sportComparison = sportOrder.indexOf(a.sport) - sportOrder.indexOf(b.sport);
+                if (sportComparison !== 0) return sportComparison;
+
+                const gradeIndexA = gradeOrder.findIndex(regex => regex.test(a.name));
+                const gradeIndexB = gradeOrder.findIndex(regex => regex.test(b.name));
+
+                return gradeIndexA - gradeIndexB;
+            };
+
+            const calculateTopScorers = useCallback((leagueId, visibleMatches, visiblePlayers, visibleTeams) => {
+                const scorersMap = visibleMatches.filter(m => m.leagueId === leagueId).flatMap(m => m.scorers)
+                    .reduce((acc, scorer) => {
+                        const player = visiblePlayers.find(p => p.id === scorer.playerId);
+                        if (player) {
+                            const team = visibleTeams.find(t => t.id === player.teamId);
+                            if(team) {
+                                acc[scorer.playerId] = acc[scorer.playerId] || { playerName: player.name, teamName: team.name, logoUrl: team.logoUrl, goals: 0 };
+                                acc[scorer.playerId].goals += scorer.count;
+                            }
+                        }
+                        return acc;
+                    }, {});
+                return Object.values(scorersMap).sort((a, b) => b.goals - a.goals);
+            }, []);
+
+            const svgToPngDataUrl = (svgUrl) => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                        const pngDataUrl = canvas.toDataURL('image/png');
+                        resolve({ dataUrl: pngDataUrl, format: 'png' });
+                    };
+                    img.onerror = reject;
+                    img.src = svgUrl;
+                });
+            };
+
+            const urlToB64 = (url) => {
+                if (!url) return Promise.resolve(null);
+                return fetch(url)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+                        const contentType = res.headers.get('content-type');
+                        if (!contentType || !contentType.startsWith('image/')) {
+                            throw new Error(`Invalid content-type: ${contentType}`);
+                        }
+                        
+                        if (contentType.includes('svg')) {
+                            return svgToPngDataUrl(url);
+                        } else {
+                            return res.blob().then(blob => {
+                                return new Promise((resolve, reject) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve({ dataUrl: reader.result, format: contentType.split('/')[1] });
+                                    reader.onerror = reject;
+                                    reader.readAsDataURL(blob);
+                                });
+                            });
+                        }
+                    })
+                    .catch(e => {
+                        console.error(`Error fetching or converting image from ${url}:`, e);
+                        return null;
+                    });
+            };
+
+            const generateUpcomingMatchesPdf = async (visibleMatches) => {
+                if (!upcomingMatchesDate) {
+                    showMessage("Por favor, selecciona una fecha para el reporte.");
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const pageCenter = doc.internal.pageSize.getWidth() / 2;
+                let y = 20;
+
+                const tournamentName = tournaments.find(t => t.id === selectedTournamentId)?.name || 'TORNEO';
+                doc.setFontSize(18).text(`PRÓXIMOS PARTIDOS - ${tournamentName.toUpperCase()}`, pageCenter, y, { align: 'center' });
+                y += 8;
+                doc.setFontSize(14).text(`FECHA: ${upcomingMatchesDate}`, pageCenter, y, { align: 'center' });
+                y += 15;
+
+                const filteredMatches = visibleMatches.filter(match => match.date === upcomingMatchesDate);
+                if (filteredMatches.length === 0) {
+                    doc.setFontSize(12).text("No hay partidos programados para esta fecha.", pageCenter, y, { align: 'center' });
+                    doc.save(`proximos_partidos_${upcomingMatchesDate}.pdf`);
+                    return;
+                }
+
+                const matchesByLeague = filteredMatches.reduce((acc, match) => {
+                    (acc[match.leagueId] = acc[match.leagueId] || []).push(match);
+                    return acc;
+                }, {});
+
+                const sortedLeagueIds = Object.keys(matchesByLeague).sort((a, b) => {
+                    const leagueA = leagues.find(l => l.id === a);
+                    const leagueB = leagues.find(l => l.id === b);
+                    if (!leagueA || !leagueB) return 0;
+                    return sortLeagues(leagueA, leagueB);
+                });
+
+                for (const leagueId of sortedLeagueIds) {
+                    const leagueName = getLeagueName(leagueId);
+                    const leagueMatches = matchesByLeague[leagueId];
+
+                    if (y > 250) { doc.addPage(); y = 20; }
+
+                    doc.setFontSize(12).setFont(undefined, 'bold').text(leagueName, 14, y);
+                    y += 8;
+
+                    for (const match of leagueMatches) {
+                        if (y > 270) { doc.addPage(); y = 20; }
+
+                        const [homeLogoResult, awayLogoResult] = await Promise.all([
+                            urlToB64(getTeamLogo(match.homeTeamId)),
+                            urlToB64(getTeamLogo(match.awayTeamId))
+                        ]);
+
+                        const logoSize = 8;
+                        const verticalAlign = y - (logoSize / 2) - 1;
+
+                        doc.setFontSize(10).setFont(undefined, 'normal');
+
+                        if (homeLogoResult) {
+                            doc.addImage(homeLogoResult.dataUrl, homeLogoResult.format.toUpperCase(), 20, verticalAlign, logoSize, logoSize);
+                        }
+                        doc.text(getTeamName(match.homeTeamId), 32, y);
+
+                        doc.text('vs', pageCenter, y, { align: 'center' });
+
+                        doc.text(getTeamName(match.awayTeamId), 178, y, { align: 'right' });
+                        if (awayLogoResult) {
+                            doc.addImage(awayLogoResult.dataUrl, awayLogoResult.format.toUpperCase(), 180, verticalAlign, logoSize, logoSize);
+                        }
+
+                        y += 12;
+                    }
+                    y += 5;
+                }
+
+                doc.save(`proximos_partidos_${upcomingMatchesDate}.pdf`);
+                showMessage("PDF de Próximos Partidos generado.");
+            };
+
+            const generateRefereeSheetPdf = async (visibleMatches, visiblePlayers) => {
+                if (!refereeMatchDate) {
+                    showMessage("Selecciona una fecha para la cédula.");
+                    return;
+                }
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const pageCenter = doc.internal.pageSize.getWidth() / 2;
+
+                const filteredMatches = visibleMatches
+                    .filter(match => match.date === refereeMatchDate)
+                    .sort((a, b) => {
+                        const leagueA = leagues.find(l => l.id === a.leagueId);
+                        const leagueB = leagues.find(l => l.id === b.leagueId);
+                        if (!leagueA || !leagueB) return 0;
+                        return sortLeagues(leagueA, leagueB);
+                    });
+
+                if (filteredMatches.length === 0) {
+                    showMessage("No hay partidos para la fecha seleccionada.");
+                    return;
+                }
+
+                let matchCount = 0;
+                for (const match of filteredMatches) {
+                    const isFirstOnPage = matchCount % 2 === 0;
+                    if (matchCount > 0 && isFirstOnPage) doc.addPage();
+
+                    const yOffset = isFirstOnPage ? 15 : 150;
+                    let y = yOffset;
+
+                    const [homeLogoResult, awayLogoResult] = await Promise.all([
+                        urlToB64(getTeamLogo(match.homeTeamId)),
+                        urlToB64(getTeamLogo(match.awayTeamId))
+                    ]);
+
+                    doc.setFontSize(16).text("Cédula de Partido", pageCenter, y, { align: 'center' });
+                    y += 8;
+                    doc.setFontSize(10).text(`Liga: ${getLeagueName(match.leagueId)}`, 15, y);
+                    doc.text(`Fecha: ${match.date}`, 195, y, { align: 'right' });
+                    y += 5;
+                    
+                    doc.setLineWidth(0.5).line(15, y, 195, y);
+                    y += 8;
+
+                    if (homeLogoResult) {
+                        doc.addImage(homeLogoResult.dataUrl, homeLogoResult.format.toUpperCase(), 45, y, 12, 12);
+                    }
+                    doc.setFontSize(11).text(getTeamName(match.homeTeamId), 60, y + 8);
+
+                    doc.setFontSize(11).text("VS", pageCenter, y + 8, { align: 'center' });
+
+                    if (awayLogoResult) {
+                        doc.addImage(awayLogoResult.dataUrl, awayLogoResult.format.toUpperCase(), 153, y, 12, 12);
+                    }
+                    doc.setFontSize(11).text(getTeamName(match.awayTeamId), 148, y + 8, { align: 'right' });
+                    
+                    y += 20;
+
+                    const homeTeamPlayers = getPlayersByTeam(match.homeTeamId).filter(p => visiblePlayers.some(vp => vp.id === p.id)).map(p => [p.name, '']);
+                    const awayTeamPlayers = getPlayersByTeam(match.awayTeamId).filter(p => visiblePlayers.some(vp => vp.id === p.id)).map(p => [p.name, '']);
+
+                    doc.autoTable({ startY: y, head: [['Jugadores Local', 'N']], body: homeTeamPlayers, theme: 'grid', margin: { left: 15, right: 110 }, styles: { fontSize: 8, cellPadding: 1 }, headStyles: { fillColor: [22, 160, 133], fontSize: 9 }, columnStyles: { 1: { cellWidth: 10 } } });
+                    doc.autoTable({ startY: y, head: [['Jugadores Visitante', 'N']], body: awayTeamPlayers, theme: 'grid', margin: { left: 110, right: 15 }, styles: { fontSize: 8, cellPadding: 1 }, headStyles: { fillColor: [22, 160, 133], fontSize: 9 }, columnStyles: { 1: { cellWidth: 10 } } });
+
+                    y = doc.autoTable.previous.finalY + 7;
+
+                    doc.setFontSize(9).text("Marcador Final:", 15, y);
+                    doc.rect(45, y - 3, 20, 7);
+                    doc.text("Observaciones:", 75, y);
+                    doc.rect(100, y - 3, 95, 12);
+                    y += 15;
+                    
+                    doc.line(20, y, 80, y); doc.setFontSize(9).text("Firma Árbitro", 40, y + 4);
+                    doc.line(120, y, 180, y); doc.setFontSize(9).text("Firma Capitán", 140, y + 4);
+                    
+                    matchCount++;
+                }
+
+                doc.save(`cedula_arbitro_${refereeMatchDate}.pdf`);
+                showMessage("Cédula de Árbitro generada.");
+            };
+
+            const generateStandingsAndTopScorersPdf = async (visibleLeagues, visibleTeams, visibleMatches, visiblePlayers) => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                let y = 10;
+                doc.setFontSize(18).text(`Reporte de Torneo: ${tournaments.find(t => t.id === selectedTournamentId)?.name || ''}`, 10, y);
+                y += 15;
+
+                const allStandings = visibleLeagues.flatMap(l => calculateStandings(l.id, visibleTeams, visibleMatches));
+                const allScorers = visibleLeagues.flatMap(l => calculateTopScorers(l.id, visibleMatches, visiblePlayers, visibleTeams));
+                const allLogoUrls = [...new Set([...allStandings.map(t => t.logoUrl), ...allScorers.map(s => s.logoUrl)])].filter(Boolean);
+                
+                const logoResults = await Promise.all(allLogoUrls.map(url => urlToB64(url)));
+                const logoMap = allLogoUrls.reduce((map, url, index) => {
+                    map[url] = logoResults[index];
+                    return map;
+                }, {});
+
+                for (const league of visibleLeagues.sort(sortLeagues)) {
+                    if (y > 250) { doc.addPage(); y = 15; }
+                    doc.setFontSize(16).text(`Liga: ${league.name}`, 14, y);
+                    y += 10;
+
+                    doc.setFontSize(14).text("Clasificación:", 14, y);
+                    y += 7;
+                    const standings = calculateStandings(league.id, visibleTeams, visibleMatches);
+                    if (standings.length > 0) {
+                        doc.autoTable({
+                            startY: y,
+                            head: [['', 'Equipo', 'PJ', 'G', 'E', 'P', 'GF', 'GC', 'DG', 'Pts']],
+                            body: standings.map(t => ['', t.teamName, t.played, t.wins, t.draws, t.losses, t.goalsFor, t.goalsAgainst, t.goalDifference, t.points]),
+                            theme: 'grid',
+                            columnStyles: { 0: { cellWidth: 12 } },
+                            didDrawCell: (data) => {
+                                if (data.section === 'body' && data.column.index === 0) {
+                                    const team = standings[data.row.index];
+                                    const logoResult = logoMap[team.logoUrl];
+                                    if (logoResult) {
+                                        doc.addImage(logoResult.dataUrl, logoResult.format.toUpperCase(), data.cell.x + 2, data.cell.y + 2, 8, 8);
+                                    }
+                                }
+                            }
+                        });
+                        y = doc.autoTable.previous.finalY + 10;
+                    } else { doc.text("No hay datos.", 14, y); y += 10; }
+
+                    if (y > 250) { doc.addPage(); y = 15; }
+                    doc.setFontSize(14).text("Tabla de Anotadores:", 14, y);
+                    y += 7;
+                    const scorers = calculateTopScorers(league.id, visibleMatches, visiblePlayers, visibleTeams);
+                    if (scorers.length > 0) {
+                        doc.autoTable({
+                            startY: y,
+                            head: [['', 'Jugador', 'Equipo', 'Goles']],
+                            body: scorers.map(s => ['', s.playerName, s.teamName, s.goals]),
+                            theme: 'grid',
+                            columnStyles: { 0: { cellWidth: 12 } },
+                            didDrawCell: (data) => {
+                                if (data.section === 'body' && data.column.index === 0) {
+                                    const scorer = scorers[data.row.index];
+                                    const logoResult = logoMap[scorer.logoUrl];
+                                    if (logoResult) {
+                                        doc.addImage(logoResult.dataUrl, logoResult.format.toUpperCase(), data.cell.x + 2, data.cell.y + 2, 8, 8);
+                                    }
+                                }
+                            }
+                        });
+                        y = doc.autoTable.previous.finalY + 10;
+                    } else { doc.text("No hay datos.", 14, y); y += 10; }
+                }
+                doc.save(`reporte_torneo_${selectedTournamentId}.pdf`);
+                showMessage("PDF de Reporte de Torneo generado.");
+            };
+
+            const generateTeamRostersPdf = async (selectedSport) => {
+                if (!selectedSport) {
+                    showMessage("Por favor, selecciona un deporte para generar la lista.");
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const pageCenter = doc.internal.pageSize.getWidth() / 2;
+                let y = 15;
+
+                const schoolLogoUrl = 'https://i.imgur.com/dzDfAiQ.png';
+                try {
+                    const logoResult = await urlToB64(schoolLogoUrl);
+                    if (logoResult) {
+                        doc.addImage(logoResult.dataUrl, logoResult.format.toUpperCase(), 15, y, 20, 20);
+                    }
+                } catch (e) {
+                    console.error("Could not add school logo to PDF", e);
+                }
+
+                doc.setFontSize(22).setFont(undefined, 'bold');
+                doc.text(`Listas de Equipos - ${selectedSport}`, pageCenter, y + 10, { align: 'center' });
+                y += 30;
+
+                const sportLeagues = visibleLeagues
+                    .filter(l => l.sport === selectedSport)
+                    .sort(sortLeagues);
+
+                if (sportLeagues.length === 0) {
+                    doc.setFontSize(12).text("No hay ligas para el deporte seleccionado.", 14, y);
+                    doc.save(`listas_equipos_${selectedSport}.pdf`);
+                    return;
+                }
+
+                for (const league of sportLeagues) {
+                    const leagueTeams = visibleTeams.filter(t => t.leagueId === league.id);
+                    if (leagueTeams.length === 0) continue;
+
+                    if (y > 250) {
+                        doc.addPage();
+                        y = 15;
+                    }
+
+                    doc.setFontSize(16).setFont(undefined, 'bold');
+                    doc.text(league.name, 14, y);
+                    y += 8;
+
+                    for (const team of leagueTeams) {
+                        const teamPlayers = visiblePlayers
+                            .filter(p => p.teamId === team.id)
+                            .map(p => [p.name]);
+
+                        if (y > 260) {
+                            doc.addPage();
+                            y = 15;
+                        }
+                        
+                        const teamHeader = [[{ content: team.name, styles: { fillColor: [22, 160, 133], textColor: 255, fontStyle: 'bold' } }]];
+                        
+                        doc.autoTable({
+                            startY: y,
+                            head: teamHeader,
+                            body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados']],
+                            theme: 'grid',
+                            margin: { left: 14, right: 14 },
+                            styles: { fontSize: 9, cellPadding: 1.5 },
+                            headStyles: { fontSize: 10, cellPadding: 2 },
+                            didDrawPage: (data) => {
+                                y = data.cursor.y;
+                            }
+                        });
+                        y = doc.autoTable.previous.finalY + 8;
+                    }
+                }
+
+                doc.save(`listas_equipos_${selectedSport}.pdf`);
+                showMessage("PDF de Listas de Equipos generado.");
+            };
+
+            const visibleLeagues = leagues.filter(l => l.tournamentId === selectedTournamentId);
+            const visibleLeagueIds = visibleLeagues.map(l => l.id);
+            const visibleTeams = teams.filter(t => visibleLeagueIds.includes(t.leagueId));
+            const visibleTeamIds = visibleTeams.map(t => t.id);
+            const visiblePlayers = players.filter(p => visibleTeamIds.includes(p.teamId));
+            const visibleMatches = matches.filter(m => visibleLeagueIds.includes(m.leagueId));
+
+            const AdminPanel = () => {
+                const [rosterSport, setRosterSport] = useState('');
+
+                const generateTeamRostersPdf = async (selectedSport) => {
+                    if (!selectedSport) {
+                        showMessage("Por favor, selecciona un deporte para generar la lista.");
+                        return;
+                    }
+
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    const pageCenter = doc.internal.pageSize.getWidth() / 2;
+                    let y = 15;
+
+                    const schoolLogoUrl = 'https://i.imgur.com/dzDfAiQ.png';
+                    try {
+                        const logoResult = await urlToB64(schoolLogoUrl);
+                        if (logoResult) {
+                            doc.addImage(logoResult.dataUrl, logoResult.format.toUpperCase(), 15, y, 20, 20);
+                        }
+                    } catch (e) {
+                        console.error("Could not add school logo to PDF", e);
+                    }
+
+                    doc.setFontSize(22).setFont(undefined, 'bold');
+                    doc.text(`Listas de Equipos - ${selectedSport}`, pageCenter, y + 10, { align: 'center' });
+                    y += 30;
+
+                    const sportLeagues = visibleLeagues
+                        .filter(l => l.sport === selectedSport)
+                        .sort(sortLeagues);
+
+                    if (sportLeagues.length === 0) {
+                        doc.setFontSize(12).text("No hay ligas para el deporte seleccionado.", 14, y);
+                        doc.save(`listas_equipos_${selectedSport}.pdf`);
+                        return;
+                    }
+
+                    for (const league of sportLeagues) {
+                        const leagueTeams = visibleTeams.filter(t => t.leagueId === league.id);
+                        if (leagueTeams.length === 0) continue;
+
+                        if (y > 250) {
+                            doc.addPage();
+                            y = 15;
+                        }
+
+                        doc.setFontSize(16).setFont(undefined, 'bold');
+                        doc.text(league.name, 14, y);
+                        y += 8;
+
+                        for (const team of leagueTeams) {
+                            const teamPlayers = visiblePlayers
+                                .filter(p => p.teamId === team.id)
+                                .map(p => [p.name]);
+
+                            if (y > 260) {
+                                doc.addPage();
+                                y = 15;
+                            }
+                            
+                            const teamHeader = [[{ content: team.name, styles: { fillColor: [22, 160, 133], textColor: 255, fontStyle: 'bold' } }]];
+                            
+                            doc.autoTable({
+                                startY: y,
+                                head: teamHeader,
+                                body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados']],
+                                theme: 'grid',
+                                margin: { left: 14, right: 14 },
+                                styles: { fontSize: 9, cellPadding: 1.5 },
+                                headStyles: { fontSize: 10, cellPadding: 2 },
+                                didDrawPage: (data) => {
+                                    y = data.cursor.y;
+                                }
+                            });
+                            y = doc.autoTable.previous.finalY + 8;
+                        }
+                    }
+
+                    doc.save(`listas_equipos_${selectedSport}.pdf`);
+                    showMessage("PDF de Listas de Equipos generado.");
+                };
+
+                return (
+                    <div className="p-4 space-y-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border-t-4 border-[#CE0E2D]">
+                        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Panel de Administrador</h2>
+                
+                        {/* --- Gestión de Torneos --- */}
+                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
+                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Gestión de Torneos</h3>
+                            <div className="flex flex-wrap items-center gap-4">
+                                <button onClick={createLeaguesAndTeams} className="btn-primary">
+                                    <PlusIcon className="w-5 h-5 mr-2" /> Crear Nuevo Torneo
+                                </button>
+                                <button onClick={handleDeleteTournament} className="btn-danger" disabled={!selectedTournamentId}>
+                                    <TrashIcon className="w-5 h-5 mr-2" /> Eliminar Torneo Actual
+                                </button>
+                            </div>
+                            {tournaments.length > 0 && (
+                                 <p className="text-sm text-gray-600 dark:text-gray-400">Torneo actual: <span className="font-bold">{tournaments.find(t => t.id === selectedTournamentId)?.name}</span></p>
+                            )}
+                        </div>
+                
+                        {/* --- Gestión de Calendario --- */}
+                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
+                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Gestión de Calendario</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Generar Calendario Base */}
+                                <div className="space-y-2">
+                                    <label htmlFor="schedule-start" className="font-semibold">Fecha de Inicio (Calendario Base)</label>
+                                    <input id="schedule-start" type="date" value={scheduleStartDate} onChange={e => setScheduleStartDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
+                                    <button onClick={() => generateSchedule(visibleLeagues, visibleTeams, true)} className="btn-primary w-full mt-2">Generar Calendario Base</button>
+                                </div>
+                                {/* Extender Calendario */}
+                                <div className="space-y-2">
+                                    <label htmlFor="schedule-end" className="font-semibold">Extender hasta Fecha</label>
+                                    <input id="schedule-end" type="date" value={scheduleEndDate} onChange={e => setScheduleEndDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
+                                    <button onClick={() => generateSchedule(visibleLeagues, visibleTeams, false)} className="btn-primary w-full mt-2">Extender Calendario</button>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-4 pt-4 border-t dark:border-gray-600">
+                                 <button onClick={() => handleDeleteSchedule(visibleLeagueIds)} className="btn-danger">Borrar Calendario del Torneo</button>
+                                 <div className="flex items-center gap-2">
+                                    <input type="date" value={postponeMatchDate} onChange={e => setPostponeMatchDate(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
+                                    <button onClick={() => handlePostponeMatchday(postponeMatchDate, visibleLeagues)} className="btn-danger">Posponer Jornada</button>
+                                 </div>
+                            </div>
+                        </div>
+                
+                        {/* --- Reportes PDF --- */}
+                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
+                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Generar Reportes PDF</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label htmlFor="upcoming-date" className="font-semibold">Próximos Partidos</label>
+                                    <input id="upcoming-date" type="date" value={upcomingMatchesDate} onChange={e => setUpcomingMatchesDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
+                                    <button onClick={() => generateUpcomingMatchesPdf(visibleMatches)} className="btn-primary w-full mt-2">Generar PDF</button>
+                                </div>
+                                <div className="space-y-2">
+                                    <label htmlFor="referee-date" className="font-semibold">Cédula de Árbitro</label>
+                                    <input id="referee-date" type="date" value={refereeMatchDate} onChange={e => setRefereeMatchDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
+                                    <button onClick={() => generateRefereeSheetPdf(visibleMatches, visiblePlayers)} className="btn-primary w-full mt-2">Generar PDF</button>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="font-semibold">Clasificación y Goleo</label>
+                                    <button onClick={() => generateStandingsAndTopScorersPdf(visibleLeagues, visibleTeams, visibleMatches, visiblePlayers)} className="btn-primary w-full mt-2">Generar PDF Completo</button>
+                                </div>
+                                <div className="space-y-2">
+                                    <label htmlFor="roster-sport" className="font-semibold">Listas de Equipos por Deporte</label>
+                                    <select id="roster-sport" value={rosterSport} onChange={e => setRosterSport(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700">
+                                        <option value="">-- Seleccionar Deporte --</option>
+                                        {[...new Set(visibleLeagues.map(l => l.sport))].sort().map(sport => <option key={sport} value={sport}>{sport}</option>)}
+                                    </select>
+                                    <button onClick={() => generateTeamRostersPdf(rosterSport)} className="btn-primary w-full mt-2">Generar PDF</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* --- Gestión de Ligas y Partidos --- */}
+                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
+                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Ligas y Partidos</h3>
+                            <div className="space-y-4">
+                                <h4 className="text-xl font-semibold">Administrar Ligas</h4>
+                                <div className="space-y-3">
+                                    {visibleLeagues.sort(sortLeagues).map(league => (
+                                        <LeagueCard
+                                            key={league.id}
+                                            league={league}
+                                            teams={visibleTeams.filter(t => t.leagueId === league.id)}
+                                            players={visiblePlayers}
+                                            appId={appId}
+                                            db={window.firebaseApp.db}
+                                            showMessage={showMessage}
+                                            onMatchDayChange={handleMatchDayChange}
+                                            onEditTeam={handleEditTeam}
+                                            onAddPlayers={handleOpenAddPlayersModal}
+                                            onAddTeam={handleAddTeam}
+                                            onDeleteTeam={handleDeleteTeam}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-4 pt-4 border-t dark:border-gray-700">
+                                <h4 className="text-xl font-semibold">Administrar Partidos</h4>
+                                 <div className="flex items-center gap-4">
+                                    <select value={selectedLeagueFilter} onChange={(e) => setSelectedLeagueFilter(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 shadow-sm">
+                                        <option value="">Filtrar por Liga</option>
+                                        {visibleLeagues.sort(sortLeagues).map(league => <option key={league.id} value={league.id}>{league.name}</option>)}
+                                    </select>
+                                    <select value={selectedDateFilter} onChange={(e) => setSelectedDateFilter(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 shadow-sm">
+                                        <option value="">Filtrar por Fecha</option>
+                                        {[...new Set(visibleMatches.map(m => m.date))].sort().map(date => <option key={date} value={date}>{date}</option>)}
+                                    </select>
+                                </div>
+                                <MatchesView
+                                    matches={visibleMatches}
+                                    leagues={visibleLeagues}
+                                    teams={visibleTeams}
+                                    players={visiblePlayers}
+                                    getLeagueName={getLeagueName}
+                                    getTeamName={getTeamName}
+                                    getPlayersByTeam={getPlayersByTeam}
+                                    appId={appId}
+                                    db={window.firebaseApp.db}
+                                    showMessage={showMessage}
+                                    selectedDateFilter={selectedDateFilter}
+                                    selectedLeagueFilter={selectedLeagueFilter}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            const StandingsView = ({ onViewTeamDetails }) => (
+                <div className="p-4 space-y-6">
+                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4">Clasificaciones y Anotadores</h2>
+                    
+                    {tournaments.length > 0 ? (
+                        <div className="flex items-center space-x-4">
+                            <select value={selectedTournamentId} onChange={(e) => setSelectedTournamentId(e.target.value)} className="w-full max-w-md p-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#007A4D] bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors">
+                                {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                        </div>
+                    ) : (
+                        <p className="text-center text-gray-500 dark:text-gray-400 py-8">No hay torneos creados. Pídele a un administrador que cree uno.</p>
+                    )}
+
+                    {tournaments.length > 0 && visibleLeagues.length === 0 && <p className="text-center text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/50 p-4 rounded-lg shadow-md">No hay ligas en el torneo seleccionado.</p>}
+                    
+                    {visibleLeagues.length > 0 && (
+                        <div className="mb-4">
+                            <select value={selectedStandingsLeagueFilter} onChange={(e) => setSelectedStandingsLeagueFilter(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm">
+                                <option value="">Ver Todas las Ligas</option>
+                                {visibleLeagues.sort(sortLeagues).map(league => <option key={league.id} value={league.id}>{league.name}</option>)}
+                            </select>
+                        </div>
+                    )}
+                    {visibleLeagues.filter(l => selectedStandingsLeagueFilter ? l.id === selectedStandingsLeagueFilter : true).sort(sortLeagues).map(league => (
+                        <div key={league.id} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl space-y-4 border-t-4 border-[#101097]">
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                                <SportIcon sport={league.sport} />
+                                {league.name}
+                                {league.sport && <span className="text-base font-normal text-gray-500 dark:text-gray-400 ml-2">- {league.sport}</span>}
+                            </h3>
+                            <div className="flex flex-col lg:flex-row lg:space-x-6 space-y-6 lg:space-y-0">
+                                <div className="flex-1 space-y-6">
+                                    <div>
+                                        <h4 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">Clasificación</h4>
+                                        <StandingsTable standings={calculateStandings(league.id, visibleTeams, visibleMatches)} onViewTeamDetails={onViewTeamDetails} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">Últimos Resultados</h4>
+                                        <ResultsList matches={visibleMatches.filter(m => m.leagueId === league.id)} getTeamName={getTeamName} getTeamLogo={getTeamLogo} onMatchClick={handleMatchClick} onViewTeamDetails={onViewTeamDetails} />
+                                    </div>
+                                </div>
+                                <div className="lg:w-1/3">
+                                    <h4 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">Tabla de Anotadores</h4>
+                                    <TopScorersTable scorers={calculateTopScorers(league.id, visibleMatches, visiblePlayers, visibleTeams)} />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+
+            const TeamDetailView = ({ teamId, teams, players, matches, getLeagueName, getTeamName, getTeamLogo, onViewMatchDetails, onBack }) => {
+                const team = teams.find(t => t.id === teamId);
+                if (!team) return <p className="text-center text-gray-500 dark:text-gray-400 py-8">Equipo no encontrado.</p>;
+
+                const teamPlayers = players.filter(p => p.teamId === teamId);
+                const teamUpcomingMatches = matches.filter(m =>
+                    (m.homeTeamId === teamId || m.awayTeamId === teamId) &&
+                    new Date(m.date) >= new Date() &&
+                    m.scoreHome === null // Only show upcoming matches
+                ).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4); // Get next 4 matches
+
+                return (
+                    <div className="p-4 space-y-6">
+                        <button onClick={onBack} className="btn-primary mb-4">← Volver a Clasificaciones</button>
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                            <div className="flex items-center space-x-4">
+                                <img src={team.logoUrl} alt={`Logo de ${team.name}`} className="w-20 h-20 rounded-full shadow-md" />
+                                <div>
+                                    <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{team.name}</h3>
+                                    <p className="text-gray-600 dark:text-gray-300">Liga: {getLeagueName(team.leagueId)}</p>
+                                </div>
+                            </div>
+
+                            <h4 className="text-2xl font-bold text-gray-900 dark:text-white mt-6">Integrantes</h4>
+                            {teamPlayers.length > 0 ? (
+                                <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
+                                    {teamPlayers.map(player => <li key={player.id}>{player.name}</li>)}
+                                </ul>
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400">No hay jugadores registrados para este equipo.</p>
+                            )}
+
+                            <h4 className="text-2xl font-bold text-gray-900 dark:text-white mt-6">Próximos Partidos</h4>
+                            {teamUpcomingMatches.length > 0 ? (
+                                <div className="space-y-3">
+                                    {teamUpcomingMatches.map(match => (
+                                        <div key={match.id} onClick={() => onViewMatchDetails(match)} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg hover:shadow-md cursor-pointer transition-all duration-200">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(match.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                            <div className="flex items-center justify-between mt-1">
+                                                <div className="flex-1 text-sm font-bold flex items-center">
+                                                    <img src={getTeamLogo(match.homeTeamId)} className="w-5 h-5 rounded-full mr-2 shadow-sm" />
+                                                    {getTeamName(match.homeTeamId)}
+                                                </div>
+                                                <span className="text-lg font-extrabold mx-3 text-[#101097] dark:text-blue-300">vs</span>
+                                                <div className="flex-1 text-sm font-bold flex items-center justify-end text-right">
+                                                    {getTeamName(match.awayTeamId)}
+                                                    <img src={getTeamLogo(match.awayTeamId)} className="w-5 h-5 rounded-full ml-2 shadow-sm" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400">No hay próximos partidos programados para este equipo.</p>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderView = () => {
+                if (isLoading && !isAuthReady) {
+                    return (
+                        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+                            <div className="animate-spin rounded-full h-32 w-32 border-t-4 border-b-4 border-[#101097]"></div>
+                            <p className="mt-4 text-[#101097] dark:text-blue-300 text-lg font-semibold">Cargando Datos...</p>
+                        </div>
+                    );
+                }
+                switch (view) {
+                    case 'standings': return <StandingsView onViewTeamDetails={handleViewTeamDetails} />;
+                    case 'admin': return user ? <AdminPanel /> : (
+                        <div className="flex items-center justify-center h-[50vh]">
+                            <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-sm text-center border-t-4 border-[#101097]">
+                                <h3 className="text-2xl font-bold mb-4">Acceso de Administrador</h3>
+                                <p className="text-gray-600 dark:text-gray-300 mb-4">Inicia sesión para administrar los torneos.</p>
+                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mb-4 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#101097]" placeholder="Correo electrónico" />
+                                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(); }} className="w-full p-3 mb-4 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#101097]" placeholder="Contraseña" />
+                                <button onClick={handleLogin} className="btn-primary w-full">Ingresar</button>
+                            </div>
+                        </div>
+                    );
+                    case 'teamDetail': return <TeamDetailView teamId={selectedTeamIdForDetail} teams={teams} players={players} matches={matches} getLeagueName={getLeagueName} getTeamName={getTeamName} getTeamLogo={getTeamLogo} onViewMatchDetails={handleMatchClick} onBack={() => setView('standings')} />;
+                    default: return <StandingsView onViewTeamDetails={handleViewTeamDetails} />;
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
+                    <nav className="bg-[#CE0E2D] dark:bg-[#a80b24] p-4 shadow-lg sticky top-0 z-40 border-b-2 border-gray-900/20">
+                        <div className="flex justify-between items-center max-w-7xl mx-auto">
+                             <div className="flex items-center space-x-4">
+                                <span className="text-white font-bold text-xl">Ligas La Salle Primaria</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                                <button onClick={() => setView('standings')} className={`nav-button ${view === 'standings' ? 'bg-black/10' : ''}`}><TrophyIcon className="inline-block w-5 h-5 mr-2" />Clasificación</button>
+                                <button onClick={() => setView('admin')} className={`nav-button ${view === 'admin' ? 'bg-black/10' : ''}`}><LockIcon className="inline-block w-5 h-5 mr-2" />Admin</button>
+                                {user && (
+                                    <button onClick={handleLogout} className="nav-button">Cerrar Sesión</button>
+                                )}
+                            </div>
+                        </div>
+                    </nav>
+                    <main className="max-w-7xl mx-auto py-6 px-4">
+                        {renderView()}
+                    </main>
+                    <MatchDetailsModal match={matchDetails} onClose={() => setMatchDetails(null)} getPlayerName={getPlayerName} getTeamName={getTeamName} />
+                    <EditTeamModal team={editingTeam} onClose={handleCloseEditTeam} onSave={handleUpdateTeam} showMessage={showMessage} />
+                    <AddPlayersModal team={addingPlayersTeam} onClose={() => setAddingPlayersTeam(null)} onAdd={handleAddMultiplePlayers} showMessage={showMessage} />
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [appId, setAppId] = useState(null);
+            const [isAuthReady, setIsAuthReady] = useState(false);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [showModal, setShowModal] = useState(false);
+            const [modalMessage, setModalMessage] = useState('');
+
+            const showMessage = (message) => { setModalMessage(message); setShowModal(true); };
+
+            useEffect(() => {
+                const initFirebase = async () => {
+                    try {
+                        const { initializeApp, getAuth, onAuthStateChanged, getFirestore } = window.firebaseModules;
+                        const firebaseConfig = { apiKey: "AIzaSyBHX9ezfBiEZhxIDZTr-OTB5hgKV-zt0G4", authDomain: "torneos-lasalle-2.firebaseapp.com", projectId: "torneos-lasalle-2", storageBucket: "torneos-lasalle-2.firebasestorage.app", messagingSenderId: "860168864523", appId: "1:860168864523:web:1da5a47fa8ccb20def980e" };
+                        const app = initializeApp(firebaseConfig);
+                        const auth = getAuth(app);
+                        setAppId('lasalle-primaria-deportes'); // ID para la base de datos de Primaria
+                        window.firebaseApp = { ...window.firebaseApp, app, auth, db: getFirestore(app) };
+
+                        onAuthStateChanged(auth, (user) => {
+                            setUser(user);
+                            setIsAuthReady(true);
+                        });
+                    } catch (e) {
+                        console.error("Firebase init error", e);
+                        setIsAuthReady(true);
+                        document.getElementById('root').innerHTML = `<div class="p-8 text-center text-red-500">Error: No se pudo cargar Firebase.</div>`;
+                    }
+                };
+                initFirebase();
+            }, []);
+
+            const handleLogin = async () => {
+                const { signInWithEmailAndPassword } = window.firebaseModules;
+                const auth = window.firebaseApp.auth;
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    showMessage("Inicio de sesión exitoso.");
+                } catch (error) {
+                    showMessage("Error al iniciar sesión: " + error.message);
+                }
+            };
+
+            const handleLogout = async () => {
+                const { signOut } = window.firebaseModules;
+                const auth = window.firebaseApp.auth;
+                try {
+                    await signOut(auth);
+                    showMessage("Sesión cerrada.");
+                } catch (error) {
+                    showMessage("Error al cerrar sesión: " + error.message);
+                }
+            };
+
+            return (
+                <DataProvider user={user} appId={appId} isAuthReady={isAuthReady}>
+                    <AppContent
+                        user={user}
+                        isAuthReady={isAuthReady}
+                        handleLogin={handleLogin}
+                        handleLogout={handleLogout}
+                        email={email}
+                        setEmail={setEmail}
+                        password={password}
+                        setPassword={setPassword}
+                        showMessage={showMessage}
+                    />
+                    <Modal show={showModal} message={modalMessage} onClose={() => setShowModal(false)} />
+                </DataProvider>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
