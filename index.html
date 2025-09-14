@@ -84,7 +84,7 @@
             return HOLIDAY_CTE_DATES.includes(dateString);
         };
 
-        // --- Context and Provider for Data --- 
+        // --- Context and Provider for Data ---
         const DataContext = createContext();
 
         const DataProvider = ({ children, user, appId, isAuthReady }) => {
@@ -378,29 +378,47 @@
         const AddPlayersModal = ({ team, onClose, onAdd, showMessage }) => {
             if (!team) return null;
 
-            const [playerNames, setPlayerNames] = useState('');
+            const [playerData, setPlayerData] = useState('');
 
             const handleAdd = () => {
-                const names = playerNames.split('\n').map(name => name.trim()).filter(name => name);
-                if (names.length === 0) {
-                    showMessage("Por favor, introduce al menos un nombre de jugador.");
+                const lines = playerData.split('\n').map(line => line.trim()).filter(line => line);
+                if (lines.length === 0) {
+                    showMessage("Por favor, introduce al menos un jugador.");
                     return;
                 }
-                onAdd(team.id, names);
-                setPlayerNames('');
+                
+                const players = lines.map(line => {
+                    const parts = line.split(',');
+                    const name = parts[0]?.trim();
+                    const group = parts[1]?.trim().toUpperCase();
+                    if (!name || !group) {
+                        showMessage(`Línea inválida: "${line}". Asegúrate de usar el formato "Nombre, Grupo".`);
+                        return null;
+                    }
+                    return { name, group };
+                }).filter(Boolean);
+
+                if (players.length > 0) {
+                    onAdd(team.id, players);
+                    setPlayerData('');
+                }
             };
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full text-left border-t-4 border-[#101097]">
                         <h3 className="text-xl font-bold mb-2">Añadir Jugadores a <span className="text-[#101097]">{team.name}</span></h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Escribe un nombre por línea. Puedes pegar una lista desde Excel o un editor de texto.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            Escribe un jugador por línea con el formato: <b>Nombre Apellido, Grupo</b>.
+                            <br/>
+                            Ejemplo: <b>Juan Pérez, 1A</b>
+                        </p>
                         <textarea
-                            value={playerNames}
-                            onChange={(e) => setPlayerNames(e.target.value)}
+                            value={playerData}
+                            onChange={(e) => setPlayerData(e.target.value)}
                             rows="10"
                             className="w-full mt-1 p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-                            placeholder="Juan Pérez\nMaria García\n..."
+                            placeholder="Juan Pérez, 1A\nMaria García, 2B\n..."
                         />
                         <div className="flex justify-end space-x-2 mt-6">
                             <button onClick={onClose} className="py-2 px-5 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-semibold rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-all">Cancelar</button>
@@ -628,7 +646,7 @@
                                         {players.filter(p => p.teamId === team.id).length > 0 ? (
                                             players.filter(p => p.teamId === team.id).map(player => (
                                                 <li key={player.id} className="flex items-center justify-between">
-                                                    <span>{player.name}</span>
+                                                    <span>{player.name} <span className="text-xs text-gray-500">({player.group})</span></span>
                                                     <button onClick={() => handleDeletePlayer(player.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><TrashIcon className="w-4 h-4" /></button>
                                                 </li>
                                             ))
@@ -709,19 +727,24 @@
                 setAddingPlayersTeam(team);
             };
 
-            const handleAddMultiplePlayers = async (teamId, names) => {
+            const handleAddMultiplePlayers = async (teamId, players) => {
                 if (!user || !appId) return;
                 const { db } = window.firebaseApp;
                 const { doc, setDoc } = window.firebaseModules;
                 
-                const playerPromises = names.map(name => {
+                const playerPromises = players.map(player => {
                     const playerId = crypto.randomUUID();
-                    return setDoc(doc(db, `artifacts/${appId}/public/data/players`, playerId), { id: playerId, name, teamId });
+                    return setDoc(doc(db, `artifacts/${appId}/public/data/players`, playerId), { 
+                        id: playerId, 
+                        name: player.name, 
+                        group: player.group, 
+                        teamId 
+                    });
                 });
 
                 try {
                     await Promise.all(playerPromises);
-                    showMessage(`${names.length} jugador(es) añadido(s) con éxito.`);
+                    showMessage(`${players.length} jugador(es) añadido(s) con éxito.`);
                     setAddingPlayersTeam(null); // Close modal on success
                 } catch (e) {
                     console.error("Error adding multiple players:", e);
@@ -937,40 +960,40 @@
                         });
                         const teamLogos = {
                             "Futbol 1ro y 2do de Primaria": [
-                                { name: "Club América", logo: "https://logodownload.org/wp-content/uploads/2017/02/club-america-logo-escudo.png" },
-                                { name: "Chivas Guadalajara", logo: "https://logodownload.org/wp-content/uploads/2017/02/chivas-guadalajara-logo-escudo.png" },
-                                { name: "Cruz Azul", logo: "https://logodownload.org/wp-content/uploads/2017/02/cruz-azul-logo-escudo.png" },
-                                { name: "Tigres UANL", logo: "https://logodownload.org/wp-content/uploads/2017/02/tigres-uanl-logo-escudo.png" },
+                                { name: "Club América", logo: "https://i.imgur.com/FE5b9iT.png" },
+                                { name: "Chivas Guadalajara", logo: "https://i.imgur.com/gJ6Z2p3.png" },
+                                { name: "Cruz Azul", logo: "https://i.imgur.com/Lnd22F2.png" },
+                                { name: "Tigres UANL", logo: "https://i.imgur.com/c055j4g.png" },
                             ],
                             "Futbol 3ro y 4to de Primaria": [
-                                { name: "Manchester United", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/1200px-Manchester_United_FC_crest.svg.png" },
-                                { name: "Liverpool FC", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/1200px-Liverpool_FC.svg.png" },
-                                { name: "Chelsea FC", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/1200px-Chelsea_FC.svg.png" },
-                                { name: "Arsenal FC", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/1200px-Arsenal_FC.svg.png" },
+                                { name: "Manchester United", logo: "https://i.imgur.com/1c4so0J.png" },
+                                { name: "Liverpool FC", logo: "https://i.imgur.com/Yf2jO2j.png" },
+                                { name: "Chelsea FC", logo: "https://i.imgur.com/dAnm9nU.png" },
+                                { name: "Arsenal FC", logo: "https://i.imgur.com/m0t2Gz4.png" },
                             ],
                             "Futbol 5to y 6to de Primaria": [
-                                { name: "Real Madrid", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/1200px-Real_Madrid_CF.svg.png" },
-                                { name: "FC Barcelona", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/1200px-FC_Barcelona_%28crest%29.svg.png" },
-                                { name: "Atletico Madrid", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/f/f4/Atletico_Madrid_2017_logo.svg/1200px-Atletico_Madrid_2017_logo.svg.png" },
-                                { name: "Valencia CF", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/c/c9/Valencia_CF_logo.svg/1200px-Valencia_CF_logo.svg.png" },
+                                { name: "Real Madrid", logo: "https://i.imgur.com/J3Jp4p4.png" },
+                                { name: "FC Barcelona", logo: "https://i.imgur.com/N414Q4F.png" },
+                                { name: "Atletico Madrid", logo: "https://i.imgur.com/i4u3TfC.png" },
+                                { name: "Valencia CF", logo: "https://i.imgur.com/d3j3j3j.png" },
                             ],
                             "Basquetbol 1ro y 2do de Primaria": [
-                                { name: "Chiapas", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Coat_of_arms_of_Chiapas.svg/800px-Coat_of_arms_of_Chiapas.svg.png" },
-                                { name: "Monterrey", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Coat_of_arms_of_Nuevo_Le%C3%B3n.svg/800px-Coat_of_arms_of_Nuevo_Le%C3%B3n.svg.png" },
-                                { name: "Jalisco", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Escudo_de_Jalisco.svg/800px-Escudo_de_Jalisco.svg.png" },
-                                { name: "Cd Mexico", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Seal_of_Mexico_City.svg/800px-Seal_of_Mexico_City.svg.png" },
+                                { name: "Chiapas", logo: "https://i.imgur.com/6y6y6y6.png" },
+                                { name: "Monterrey", logo: "https://i.imgur.com/7z7z7z7.png" },
+                                { name: "Jalisco", logo: "https://i.imgur.com/8x8x8x8.png" },
+                                { name: "Cd Mexico", logo: "https://i.imgur.com/9y9y9y9.png" },
                             ],
                             "Basquetbol 3ro y 4to de Primaria": [
-                                { name: "Dallas", logo: "https://loodibee.com/wp-content/uploads/Dallas-Mavericks-logo.png" },
-                                { name: "Lakers", logo: "https://loodibee.com/wp-content/uploads/Los-Angeles-Lakers-logo.png" },
-                                { name: "Chicago", logo: "https://loodibee.com/wp-content/uploads/Chicago-Bulls-logo.png" },
-                                { name: "Toronto", logo: "https://loodibee.com/wp-content/uploads/Toronto-Raptors-logo.png" },
+                                { name: "Dallas", logo: "https://i.imgur.com/A0A0A0A.png" },
+                                { name: "Lakers", logo: "https://i.imgur.com/B1B1B1B.png" },
+                                { name: "Chicago", logo: "https://i.imgur.com/C2C2C2C.png" },
+                                { name: "Toronto", logo: "https://i.imgur.com/D3D3D3D.png" },
                             ],
                             "Basquetbol 5to y 6to de Primaria": [
-                                { name: "Brasil", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Brazil_national_basketball_team_logo.svg/800px-Brazil_national_basketball_team_logo.svg.png" },
-                                { name: "Francia", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/France_national_basketball_team_logo.svg/800px-France_national_basketball_team_logo.svg.png" },
-                                { name: "Mexico", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Mexico_national_basketball_team_logo.svg/800px-Mexico_national_basketball_team_logo.svg.png" },
-                                { name: "España", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Spain_national_basketball_team_logo.svg/800px-Spain_national_basketball_team_logo.svg.png" },
+                                { name: "Brasil", logo: "https://i.imgur.com/E4E4E4E.png" },
+                                { name: "Francia", logo: "https://i.imgur.com/F5F5F5F.png" },
+                                { name: "Mexico", logo: "https://i.imgur.com/G6G6G6G.png" },
+                                { name: "España", logo: "https://i.imgur.com/H7H7H7H.png" },
                             ],
                             // Add more for Tocho/Voleibol if needed, or they will use default placeholder
                         };
@@ -987,7 +1010,7 @@
                             await setDoc(doc(db, `artifacts/${appId}/public/data/teams`, teamId), { 
                                 id: teamId, 
                                 name: teamInfo.name, 
-                                leagueId, 
+                                leagueId,
                                 logoUrl: teamInfo.logo 
                             });
                         }
@@ -1110,8 +1133,8 @@
                     home.played++; away.played++;
                     home.goalsFor += match.scoreHome; home.goalsAgainst += match.scoreAway;
                     away.goalsFor += match.scoreAway; away.goalsAgainst += match.scoreHome;
-                    if (match.scoreHome > match.scoreAway) { home.wins++; away.losses++; home.points += 3; }
-                    else if (match.scoreHome < match.scoreAway) { away.wins++; home.losses++; away.points += 3; }
+                    if (match.scoreHome > match.scoreAway) { home.wins++; away.losses++; home.points += 3; } 
+                    else if (match.scoreHome < match.scoreAway) { away.wins++; home.losses++; away.points += 3; } 
                     else { home.draws++; away.draws++; home.points++; away.points++; }
                     home.goalDifference = home.goalsFor - home.goalsAgainst;
                     away.goalDifference = away.goalsFor - away.goalsAgainst;
@@ -1431,84 +1454,116 @@
             };
 
             const generateTeamRostersPdf = async (selectedSport) => {
-                if (!selectedSport) {
-                    showMessage("Por favor, selecciona un deporte para generar la lista.");
-                    return;
+    if (!selectedSport) {
+        showMessage("Por favor, selecciona un deporte para generar la lista.");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageCenter = doc.internal.pageSize.getWidth() / 2;
+
+    // --- Colores La Salle ---
+    const laSalleBlue = '#001E61';
+    const laSalleRed = '#CE0E2D';
+    const lightBlue = '#B3CDE0';
+
+    const schoolLogoUrl = 'https://i.imgur.com/dzDfAiQ.png';
+    const schoolLogoResult = await urlToB64(schoolLogoUrl).catch(e => console.error("Error loading school logo", e));
+
+    const sportLeagues = visibleLeagues
+        .filter(l => l.sport === selectedSport)
+        .sort(sortLeagues);
+
+    if (sportLeagues.length === 0) {
+        doc.setFontSize(12).text("No hay ligas para el deporte seleccionado.", 14, 15);
+        doc.save(`listas_equipos_${selectedSport}.pdf`);
+        return;
+    }
+
+    let isFirstPage = true;
+
+    for (const league of sportLeagues) {
+        if (!isFirstPage) {
+            doc.addPage();
+        }
+        isFirstPage = false;
+
+        let y = 25;
+
+        // Encabezado de la Liga
+        if (schoolLogoResult) {
+            doc.addImage(schoolLogoResult.dataUrl, schoolLogoResult.format.toUpperCase(), 15, 15, 20, 20);
+        }
+        doc.setFontSize(20).setFont(undefined, 'bold');
+        doc.setTextColor(laSalleBlue);
+        doc.text(league.name.toUpperCase(), pageCenter, y, { align: 'center' });
+        y += 15;
+
+        const leagueTeams = visibleTeams.filter(t => t.leagueId === league.id);
+        if (leagueTeams.length === 0) continue;
+
+        // Pre-cargar todos los logos de los equipos de la liga
+        const teamLogoPromises = leagueTeams.map(team => urlToB64(team.logoUrl));
+        const teamLogoResults = await Promise.all(teamLogoPromises);
+        const logoMap = leagueTeams.reduce((map, team, index) => {
+            map[team.id] = teamLogoResults[index];
+            return map;
+        }, {});
+
+        for (const team of leagueTeams) {
+            const teamPlayers = visiblePlayers
+                .filter(p => p.teamId === team.id)
+                .map(p => [p.name, p.group || '-']);
+
+            if (y > 250) { // Salto de página si no hay espacio
+                doc.addPage();
+                y = 25; // Reiniciar Y en nueva página
+                 if (schoolLogoResult) {
+                    doc.addImage(schoolLogoResult.dataUrl, schoolLogoResult.format.toUpperCase(), 15, 15, 20, 20);
                 }
+            }
 
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                const pageCenter = doc.internal.pageSize.getWidth() / 2;
-                let y = 15;
+            // Encabezado del Equipo con logo
+            const teamLogoResult = logoMap[team.id];
+            
+            doc.setFontSize(14).setFont(undefined, 'bold');
+            doc.setTextColor(laSalleRed);
+            
+            const teamNameX = teamLogoResult ? 28 : 14;
+            if (teamLogoResult) {
+                doc.addImage(teamLogoResult.dataUrl, teamLogoResult.format.toUpperCase(), 14, y - 5, 10, 10);
+            }
+            doc.text(team.name, teamNameX, y);
+            y += 8;
 
-                const schoolLogoUrl = 'https://i.imgur.com/dzDfAiQ.png';
-                try {
-                    const logoResult = await urlToB64(schoolLogoUrl);
-                    if (logoResult) {
-                        doc.addImage(logoResult.dataUrl, logoResult.format.toUpperCase(), 15, y, 20, 20);
-                    }
-                } catch (e) {
-                    console.error("Could not add school logo to PDF", e);
-                }
+            // Tabla de Jugadores
+            doc.autoTable({
+                startY: y,
+                head: [['Nombre del Jugador', 'Grupo']],
+                body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados', '']],
+                theme: 'grid',
+                headStyles: { 
+                    fillColor: lightBlue, 
+                    textColor: laSalleBlue,
+                    fontStyle: 'bold'
+                },
+                styles: { 
+                    fontSize: 10, 
+                    cellPadding: 2,
+                    lineColor: laSalleBlue,
+                    lineWidth: 0.1
+                },
+                margin: { left: 14, right: 14 },
+            });
+            y = doc.autoTable.previous.finalY + 12;
+        }
+    }
 
-                doc.setFontSize(22).setFont(undefined, 'bold');
-                doc.text(`Listas de Equipos - ${selectedSport}`, pageCenter, y + 10, { align: 'center' });
-                y += 30;
+    doc.save(`listas_equipos_${selectedSport}.pdf`);
+    showMessage("PDF de Listas de Equipos generado.");
+};
 
-                const sportLeagues = visibleLeagues
-                    .filter(l => l.sport === selectedSport)
-                    .sort(sortLeagues);
-
-                if (sportLeagues.length === 0) {
-                    doc.setFontSize(12).text("No hay ligas para el deporte seleccionado.", 14, y);
-                    doc.save(`listas_equipos_${selectedSport}.pdf`);
-                    return;
-                }
-
-                for (const league of sportLeagues) {
-                    const leagueTeams = visibleTeams.filter(t => t.leagueId === league.id);
-                    if (leagueTeams.length === 0) continue;
-
-                    if (y > 250) {
-                        doc.addPage();
-                        y = 15;
-                    }
-
-                    doc.setFontSize(16).setFont(undefined, 'bold');
-                    doc.text(league.name, 14, y);
-                    y += 8;
-
-                    for (const team of leagueTeams) {
-                        const teamPlayers = visiblePlayers
-                            .filter(p => p.teamId === team.id)
-                            .map(p => [p.name]);
-
-                        if (y > 260) {
-                            doc.addPage();
-                            y = 15;
-                        }
-                        
-                        const teamHeader = [[{ content: team.name, styles: { fillColor: [22, 160, 133], textColor: 255, fontStyle: 'bold' } }]];
-                        
-                        doc.autoTable({
-                            startY: y,
-                            head: teamHeader,
-                            body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados']],
-                            theme: 'grid',
-                            margin: { left: 14, right: 14 },
-                            styles: { fontSize: 9, cellPadding: 1.5 },
-                            headStyles: { fontSize: 10, cellPadding: 2 },
-                            didDrawPage: (data) => {
-                                y = data.cursor.y;
-                            }
-                        });
-                        y = doc.autoTable.previous.finalY + 8;
-                    }
-                }
-
-                doc.save(`listas_equipos_${selectedSport}.pdf`);
-                showMessage("PDF de Listas de Equipos generado.");
-            };
 
             const visibleLeagues = leagues.filter(l => l.tournamentId === selectedTournamentId);
             const visibleLeagueIds = visibleLeagues.map(l => l.id);
@@ -1518,88 +1573,6 @@
             const visibleMatches = matches.filter(m => visibleLeagueIds.includes(m.leagueId));
 
             const AdminPanel = () => {
-                const [rosterSport, setRosterSport] = useState('');
-
-                const generateTeamRostersPdf = async (selectedSport) => {
-                    if (!selectedSport) {
-                        showMessage("Por favor, selecciona un deporte para generar la lista.");
-                        return;
-                    }
-
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF();
-                    const pageCenter = doc.internal.pageSize.getWidth() / 2;
-                    let y = 15;
-
-                    const schoolLogoUrl = 'https://i.imgur.com/dzDfAiQ.png';
-                    try {
-                        const logoResult = await urlToB64(schoolLogoUrl);
-                        if (logoResult) {
-                            doc.addImage(logoResult.dataUrl, logoResult.format.toUpperCase(), 15, y, 20, 20);
-                        }
-                    } catch (e) {
-                        console.error("Could not add school logo to PDF", e);
-                    }
-
-                    doc.setFontSize(22).setFont(undefined, 'bold');
-                    doc.text(`Listas de Equipos - ${selectedSport}`, pageCenter, y + 10, { align: 'center' });
-                    y += 30;
-
-                    const sportLeagues = visibleLeagues
-                        .filter(l => l.sport === selectedSport)
-                        .sort(sortLeagues);
-
-                    if (sportLeagues.length === 0) {
-                        doc.setFontSize(12).text("No hay ligas para el deporte seleccionado.", 14, y);
-                        doc.save(`listas_equipos_${selectedSport}.pdf`);
-                        return;
-                    }
-
-                    for (const league of sportLeagues) {
-                        const leagueTeams = visibleTeams.filter(t => t.leagueId === league.id);
-                        if (leagueTeams.length === 0) continue;
-
-                        if (y > 250) {
-                            doc.addPage();
-                            y = 15;
-                        }
-
-                        doc.setFontSize(16).setFont(undefined, 'bold');
-                        doc.text(league.name, 14, y);
-                        y += 8;
-
-                        for (const team of leagueTeams) {
-                            const teamPlayers = visiblePlayers
-                                .filter(p => p.teamId === team.id)
-                                .map(p => [p.name]);
-
-                            if (y > 260) {
-                                doc.addPage();
-                                y = 15;
-                            }
-                            
-                            const teamHeader = [[{ content: team.name, styles: { fillColor: [22, 160, 133], textColor: 255, fontStyle: 'bold' } }]];
-                            
-                            doc.autoTable({
-                                startY: y,
-                                head: teamHeader,
-                                body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados']],
-                                theme: 'grid',
-                                margin: { left: 14, right: 14 },
-                                styles: { fontSize: 9, cellPadding: 1.5 },
-                                headStyles: { fontSize: 10, cellPadding: 2 },
-                                didDrawPage: (data) => {
-                                    y = data.cursor.y;
-                                }
-                            });
-                            y = doc.autoTable.previous.finalY + 8;
-                        }
-                    }
-
-                    doc.save(`listas_equipos_${selectedSport}.pdf`);
-                    showMessage("PDF de Listas de Equipos generado.");
-                };
-
                 return (
                     <div className="p-4 space-y-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border-t-4 border-[#CE0E2D]">
                         <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Panel de Administrador</h2>
@@ -1809,7 +1782,7 @@
                             <h4 className="text-2xl font-bold text-gray-900 dark:text-white mt-6">Integrantes</h4>
                             {teamPlayers.length > 0 ? (
                                 <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                                    {teamPlayers.map(player => <li key={player.id}>{player.name}</li>)}
+                                    {teamPlayers.map(player => <li key={player.id}>{player.name} <span className="text-xs text-gray-500">({player.group})</span></li>)}
                                 </ul>
                             ) : (
                                 <p className="text-gray-500 dark:text-gray-400">No hay jugadores registrados para este equipo.</p>
