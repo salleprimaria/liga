@@ -84,6 +84,37 @@
             return HOLIDAY_CTE_DATES.includes(dateString);
         };
 
+        // --- Telegram Notification Function ---
+        const TELEGRAM_BOT_TOKEN = '8314025136:AAG3P1AoU1rExMIeTEsE_1YDxc-Vj3r9Tac';
+        const TELEGRAM_CHAT_ID = '6740086';
+
+        const sendTelegramNotification = async (message, userEmail) => {
+            if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+                console.warn("Telegram bot token or chat ID not configured.");
+                return;
+            }
+            const fullMessage = `*Acción en la App:*
+${message}
+*Realizada por:* ${userEmail}`;
+            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: fullMessage,
+                        parse_mode: 'Markdown',
+                    }),
+                });
+                console.log("Telegram notification sent.");
+            } catch (error) {
+                console.error("Error sending Telegram notification:", error);
+            }
+        };
+
         // --- Context and Provider for Data ---
         const DataContext = createContext();
 
@@ -457,6 +488,42 @@
                     setIsEditing(false);
                     setSelectedMatch(null);
                     showMessage("Partido actualizado con éxito.");
+
+                    // --- Create detailed Telegram message ---
+                    const homeTeamName = getTeamName(selectedMatch.homeTeamId);
+                    const awayTeamName = getTeamName(selectedMatch.awayTeamId);
+
+                    let scorersMessage = "\n*Anotadores:*\n";
+                    const homeScorers = scorers.filter(s => s.teamId === selectedMatch.homeTeamId);
+                    const awayScorers = scorers.filter(s => s.teamId === selectedMatch.awayTeamId);
+
+                    if (homeScorers.length > 0) {
+                        scorersMessage += `*${homeTeamName}:*\n`;
+                        homeScorers.forEach(s => {
+                            scorersMessage += `- ${getPlayerName(s.playerId)} (${s.count})\n`;
+                        });
+                    }
+
+                    if (awayScorers.length > 0) {
+                        scorersMessage += `*${awayTeamName}:*\n`;
+                        awayScorers.forEach(s => {
+                            scorersMessage += `- ${getPlayerName(s.playerId)} (${s.count})\n`;
+                        });
+                    }
+                    
+                    if (homeScorers.length === 0 && awayScorers.length === 0) {
+                        scorersMessage = "\nSin anotadores registrados.";
+                    }
+
+                    const notificationMessage = `*Resultado de Partido Registrado*\n\n` +
+                        `*Liga:* ${getLeagueName(selectedMatch.leagueId)}\n` + 
+                        `*Fecha:* ${selectedMatch.date}\n\n` + 
+                        `*Resultado Final:*\n` + 
+                        `${homeTeamName} *${scoreHome} - ${scoreAway}* ${awayTeamName}\n` + 
+                        `${scorersMessage}`;
+
+                    sendTelegramNotification(notificationMessage, user.email);
+
                 } catch (e) {
                     console.error("Error al guardar el partido:", e);
                     showMessage("Error al guardar el partido.");
@@ -492,6 +559,15 @@
                         setIsEditing(false);
                         setSelectedMatch(null);
                         showMessage("Partido anulado con éxito (Empate 0-0).");
+
+                        const notificationMessage = `*Partido Anulado*\n\n` +
+                            `*Liga:* ${getLeagueName(selectedMatch.leagueId)}\n` +
+                            `*Fecha:* ${selectedMatch.date}\n\n` +
+                            `*Partido:*\n` +
+                            `${getTeamName(selectedMatch.homeTeamId)} vs ${getTeamName(selectedMatch.awayTeamId)}\n\n` +
+                            `El partido ha sido anulado y registrado como un empate 0-0.`;
+
+                        sendTelegramNotification(notificationMessage, user.email);
                     } catch (e) {
                         console.error("Error al anular el partido:", e);
                         showMessage("Error al anular el partido.");
@@ -700,6 +776,8 @@
                 const { doc, updateDoc } = window.firebaseModules;
                 try {
                     await updateDoc(doc(window.firebaseApp.db, `artifacts/${appId}/public/data/leagues`, leagueId), { matchDay: day ? parseInt(day, 10) : null });
+                    const dayLabel = day ? ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][parseInt(day, 10)] : 'ninguno';
+                    sendTelegramNotification(`Día de partido actualizado para liga ${getLeagueName(leagueId)} a ${dayLabel}`, user.email);
                 } catch (e) { console.error("Error updating match day:", e); showMessage("Error al actualizar el día."); }
             };
 
@@ -717,6 +795,7 @@
                 try {
                     await updateDoc(doc(window.firebaseApp.db, `artifacts/${appId}/public/data/teams`, teamId), { name, logoUrl });
                     showMessage("Equipo actualizado con éxito.");
+                    sendTelegramNotification(`Equipo actualizado: ${name} (ID: ${teamId})`, user.email);
                     handleCloseEditTeam();
                 } catch (e) {
                     console.error("Error updating team:", e); showMessage("Error al actualizar el equipo.");
@@ -745,6 +824,7 @@
                 try {
                     await Promise.all(playerPromises);
                     showMessage(`${players.length} jugador(es) añadido(s) con éxito.`);
+                    sendTelegramNotification(`Jugadores añadidos al equipo ${getTeamName(teamId)}: ${players.map(p => p.name).join(', ')}`, user.email);
                     setAddingPlayersTeam(null); // Close modal on success
                 } catch (e) {
                     console.error("Error adding multiple players:", e);
@@ -766,6 +846,7 @@
                 try {
                     await setDoc(doc(db, `artifacts/${appId}/public/data/teams`, teamId), newTeam);
                     showMessage("Equipo añadido con éxito.");
+                    sendTelegramNotification(`Equipo añadido a liga ${getLeagueName(leagueId)}: ${newTeam.name}`, user.email);
                 } catch (e) {
                     console.error("Error adding team:", e);
                     showMessage("Error al añadir el equipo.");
@@ -1909,6 +1990,7 @@
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
                     showMessage("Inicio de sesión exitoso.");
+                    sendTelegramNotification("Ha iniciado sesión en el modo administrador.", email);
                 } catch (error) {
                     showMessage("Error al iniciar sesión: " + error.message);
                 }
