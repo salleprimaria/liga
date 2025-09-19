@@ -1592,52 +1592,70 @@ ${message}
             return map;
         }, {});
 
-        for (const team of leagueTeams) {
-            const teamPlayers = visiblePlayers
-                .filter(p => p.teamId === team.id)
-                .map(p => [p.name, p.group || '-']);
+        for (let i = 0; i < leagueTeams.length; i += 2) {
+            const team1 = leagueTeams[i];
+            const team2 = leagueTeams[i + 1];
 
-            if (y > 250) { // Salto de página si no hay espacio
+            if (y > 220) { // Check for page break before drawing teams
                 doc.addPage();
-                y = 25; // Reiniciar Y en nueva página
-                 if (schoolLogoResult) {
+                y = 25;
+                if (schoolLogoResult) {
                     doc.addImage(schoolLogoResult.dataUrl, schoolLogoResult.format.toUpperCase(), 15, 15, 20, 20);
                 }
             }
 
-            // Encabezado del Equipo con logo
-            const teamLogoResult = logoMap[team.id];
-            
-            doc.setFontSize(14).setFont(undefined, 'bold');
-            doc.setTextColor(laSalleRed);
-            
-            const teamNameX = teamLogoResult ? 28 : 14;
-            if (teamLogoResult) {
-                doc.addImage(teamLogoResult.dataUrl, teamLogoResult.format.toUpperCase(), 14, y - 5, 10, 10);
-            }
-            doc.text(team.name, teamNameX, y);
-            y += 8;
+            let finalY1 = y;
+            let finalY2 = y;
 
-            // Tabla de Jugadores
-            doc.autoTable({
-                startY: y,
-                head: [['Nombre del Jugador', 'Grupo']],
-                body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados', '']],
-                theme: 'grid',
-                headStyles: { 
-                    fillColor: lightBlue, 
-                    textColor: laSalleBlue,
-                    fontStyle: 'bold'
-                },
-                styles: { 
-                    fontSize: 10, 
-                    cellPadding: 2,
-                    lineColor: laSalleBlue,
-                    lineWidth: 0.1
-                },
-                margin: { left: 14, right: 14 },
-            });
-            y = doc.autoTable.previous.finalY + 12;
+            // --- Dibuja Equipo 1 (Izquierda) ---
+            if (team1) {
+                const teamPlayers = visiblePlayers.filter(p => p.teamId === team1.id).map(p => [p.name, p.group || '-']);
+                const teamLogoResult = logoMap[team1.id];
+                
+                doc.setFontSize(14).setFont(undefined, 'bold').setTextColor(laSalleRed);
+                const teamNameX = teamLogoResult ? 28 : 14;
+                if (teamLogoResult) {
+                    doc.addImage(teamLogoResult.dataUrl, teamLogoResult.format.toUpperCase(), 14, y - 5, 10, 10);
+                }
+                doc.text(team1.name, teamNameX, y);
+
+                doc.autoTable({
+                    startY: y + 8,
+                    head: [['Nombre del Jugador', 'Grupo']],
+                    body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados', '']],
+                    theme: 'grid',
+                    headStyles: { fillColor: lightBlue, textColor: laSalleBlue, fontStyle: 'bold' },
+                    styles: { fontSize: 9, cellPadding: 1.5, lineColor: laSalleBlue, lineWidth: 0.1 },
+                    margin: { left: 14, right: pageCenter + 5 },
+                });
+                finalY1 = doc.autoTable.previous.finalY;
+            }
+
+            // --- Dibuja Equipo 2 (Derecha) ---
+            if (team2) {
+                const teamPlayers = visiblePlayers.filter(p => p.teamId === team2.id).map(p => [p.name, p.group || '-']);
+                const teamLogoResult = logoMap[team2.id];
+
+                doc.setFontSize(14).setFont(undefined, 'bold').setTextColor(laSalleRed);
+                const teamNameX = teamLogoResult ? pageCenter + 19 : pageCenter + 10;
+                if (teamLogoResult) {
+                    doc.addImage(teamLogoResult.dataUrl, teamLogoResult.format.toUpperCase(), pageCenter + 10, y - 5, 10, 10);
+                }
+                doc.text(team2.name, teamNameX, y);
+
+                doc.autoTable({
+                    startY: y + 8,
+                    head: [['Nombre del Jugador', 'Grupo']],
+                    body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados', '']],
+                    theme: 'grid',
+                    headStyles: { fillColor: lightBlue, textColor: laSalleBlue, fontStyle: 'bold' },
+                    styles: { fontSize: 9, cellPadding: 1.5, lineColor: laSalleBlue, lineWidth: 0.1 },
+                    margin: { left: pageCenter + 10, right: 14 },
+                });
+                finalY2 = doc.autoTable.previous.finalY;
+            }
+            
+            y = Math.max(finalY1, finalY2) + 12;
         }
     }
 
