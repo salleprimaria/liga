@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ligas La Salle Primaria</title>
+    <title>Ligas La Salle Tuxtla</title>
     <!-- Cargar las librerías de React y Babel para JSX -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -31,152 +31,8 @@
 <body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
     <div id="root"></div>
 
-    <!-- Cargar los módulos de Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Exportar los módulos a la ventana global para que puedan ser usados en el script de tipo "text/babel"
-        window.firebaseModules = {
-            initializeApp,
-            getAuth,
-            onAuthStateChanged,
-            signInWithEmailAndPassword,
-            signOut,
-            getFirestore,
-            doc,
-            getDoc,
-            addDoc,
-            setDoc,
-            updateDoc,
-            deleteDoc,
-            onSnapshot,
-            collection,
-            query,
-            where,
-            getDocs,
-            writeBatch,
-        };
-    </script>
-
     <script type="text/babel">
-        const { useState, useEffect, useCallback, createContext, useContext } = React;
-
-        const HOLIDAY_CTE_DATES = [
-            "2025-09-26", // CTE
-            "2025-10-31", // CTE
-            "2025-11-28", // CTE
-            "2025-12-26", // Vacaciones de Navidad
-            "2026-01-02", // Vacaciones de Navidad
-            "2026-01-09", // Vacaciones de Navidad
-            "2026-01-30", // CTE
-            "2026-02-27", // CTE
-            "2026-03-27", // CTE
-            "2026-04-03", // Vacaciones de Semana Santa
-            "2026-04-10", // Vacaciones de Semana Santa
-            "2026-05-15", // Día del Maestro
-            "2026-05-29", // CTE
-            "2026-06-26", // CTE
-        ];
-
-        const isHolidayOrCTE = (dateString) => {
-            return HOLIDAY_CTE_DATES.includes(dateString);
-        };
-
-        // --- Telegram Notification Function ---
-        const TELEGRAM_BOT_TOKEN = '8314025136:AAG3P1AoU1rExMIeTEsE_1YDxc-Vj3r9Tac';
-        const TELEGRAM_CHAT_ID = '6740086';
-
-        const sendTelegramNotification = async (message, userEmail) => {
-            if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-                console.warn("Telegram bot token or chat ID not configured.");
-                return;
-            }
-            const fullMessage = `*Acción en la App:*
-${message}
-*Realizada por:* ${userEmail}`;
-            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-            try {
-                await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        chat_id: TELEGRAM_CHAT_ID,
-                        text: fullMessage,
-                        parse_mode: 'Markdown',
-                    }),
-                });
-                console.log("Telegram notification sent.");
-            } catch (error) {
-                console.error("Error sending Telegram notification:", error);
-            }
-        };
-
-        // --- Context and Provider for Data ---
-        const DataContext = createContext();
-
-        const DataProvider = ({ children, user, appId, isAuthReady }) => {
-            const [tournaments, setTournaments] = useState([]);
-            const [selectedTournamentId, setSelectedTournamentId] = useState('');
-            const [leagues, setLeagues] = useState([]);
-            const [teams, setTeams] = useState([]);
-            const [players, setPlayers] = useState([]);
-            const [matches, setMatches] = useState([]);
-            const [isLoading, setIsLoading] = useState(true);
-
-            useEffect(() => {
-                if (!isAuthReady || !appId) {
-                    setIsLoading(true);
-                    return;
-                }
-
-                const db = window.firebaseApp.db;
-                const publicDataPath = `artifacts/${appId}/public/data`;
-                const collections = ['tournaments', 'leagues', 'teams', 'players', 'matches'];
-                const setFunctions = { 
-                    tournaments: setTournaments, 
-                    leagues: setLeagues, 
-                    teams: setTeams, 
-                    players: setPlayers, 
-                    matches: setMatches 
-                };
-
-                const unsubscribers = collections.map(col => {
-                    return window.firebaseModules.onSnapshot(window.firebaseModules.collection(db, `${publicDataPath}/${col}`), (snapshot) => {
-                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        if (col === 'tournaments') {
-                            data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                            setFunctions.tournaments(data);
-                            if (data.length > 0 && !selectedTournamentId) {
-                                setSelectedTournamentId(data[0].id);
-                            }
-                        } else {
-                            setFunctions[col](data);
-                        }
-                    });
-                });
-
-                setIsLoading(false);
-
-                return () => unsubscribers.forEach(unsub => unsub());
-            }, [appId, isAuthReady, selectedTournamentId]);
-
-            const value = {
-                tournaments, selectedTournamentId, setSelectedTournamentId,
-                leagues, teams, players, matches,
-                isLoading, setIsLoading,
-                appId, user
-            };
-
-            return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
-        };
-
-        const useData = () => useContext(DataContext);
-
-        
+        const { useState, useEffect, useCallback } = React;
 
         // --- Icon Components ---
         const PlusIcon = ({ className = 'w-5 h-5' }) => (
@@ -221,7 +77,7 @@ ${message}
             );
         };
 
-        const StandingsTable = ({ standings, onViewTeamDetails }) => {
+        const StandingsTable = ({ standings }) => {
             if (standings.length === 0) {
                 return <p className="text-center text-gray-500 dark:text-gray-400 py-4">No hay datos de clasificación para esta liga.</p>;
             }
@@ -242,7 +98,7 @@ ${message}
                             {standings.map((team, index) => (
                                 <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                        <div className="flex items-center cursor-pointer" onClick={() => onViewTeamDetails(team.id)}>
+                                        <div className="flex items-center">
                                             <img src={team.logoUrl} alt={`Logo de ${team.teamName}`} className="w-6 h-6 rounded-full mr-3 shadow-sm" />
                                             {team.teamName}
                                         </div>
@@ -291,7 +147,7 @@ ${message}
             );
         };
 
-        const ResultsList = ({ matches, getTeamName, getTeamLogo, onMatchClick, onViewTeamDetails }) => {
+        const ResultsList = ({ matches, getTeamName, getTeamLogo, onMatchClick }) => {
             const recentMatches = matches.filter(m => m.scoreHome !== null).sort((a, b) => new Date(b.date) - new Date(a.date));
             if (recentMatches.length === 0) {
                 return <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">No hay resultados recientes.</p>;
@@ -302,12 +158,12 @@ ${message}
                         <div key={match.id} onClick={() => onMatchClick(match)} className="bg-white dark:bg-gray-800/70 p-3 rounded-lg hover:shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-all duration-200 shadow-md">
                             <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(match.date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                             <div className="flex items-center justify-between mt-1">
-                                <div className="flex-1 text-sm font-bold flex items-center cursor-pointer" onClick={() => onViewTeamDetails(match.homeTeamId)}>
+                                <div className="flex-1 text-sm font-bold flex items-center">
                                     <img src={getTeamLogo(match.homeTeamId)} className="w-5 h-5 rounded-full mr-2 shadow-sm" />
                                     {getTeamName(match.homeTeamId)}
                                 </div>
                                 <span className="text-lg font-extrabold mx-3 text-[#101097] dark:text-blue-300">{match.scoreHome} - {match.scoreAway}</span>
-                                <div className="flex-1 text-sm font-bold flex items-center justify-end text-right cursor-pointer" onClick={() => onViewTeamDetails(match.awayTeamId)}>
+                                <div className="flex-1 text-sm font-bold flex items-center justify-end text-right">
                                     {getTeamName(match.awayTeamId)}
                                     <img src={getTeamLogo(match.awayTeamId)} className="w-5 h-5 rounded-full ml-2 shadow-sm" />
                                 </div>
@@ -409,47 +265,29 @@ ${message}
         const AddPlayersModal = ({ team, onClose, onAdd, showMessage }) => {
             if (!team) return null;
 
-            const [playerData, setPlayerData] = useState('');
+            const [playerNames, setPlayerNames] = useState('');
 
             const handleAdd = () => {
-                const lines = playerData.split('\n').map(line => line.trim()).filter(line => line);
-                if (lines.length === 0) {
-                    showMessage("Por favor, introduce al menos un jugador.");
+                const names = playerNames.split('\n').map(name => name.trim()).filter(name => name);
+                if (names.length === 0) {
+                    showMessage("Por favor, introduce al menos un nombre de jugador.");
                     return;
                 }
-                
-                const players = lines.map(line => {
-                    const parts = line.split(',');
-                    const name = parts[0]?.trim();
-                    const group = parts[1]?.trim().toUpperCase();
-                    if (!name || !group) {
-                        showMessage(`Línea inválida: "${line}". Asegúrate de usar el formato "Nombre, Grupo".`);
-                        return null;
-                    }
-                    return { name, group };
-                }).filter(Boolean);
-
-                if (players.length > 0) {
-                    onAdd(team.id, players);
-                    setPlayerData('');
-                }
+                onAdd(team.id, names);
+                setPlayerNames('');
             };
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full text-left border-t-4 border-[#101097]">
                         <h3 className="text-xl font-bold mb-2">Añadir Jugadores a <span className="text-[#101097]">{team.name}</span></h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                            Escribe un jugador por línea con el formato: <b>Nombre Apellido, Grupo</b>.
-                            <br/>
-                            Ejemplo: <b>Juan Pérez, 1A</b>
-                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Escribe un nombre por línea. Puedes pegar una lista desde Excel o un editor de texto.</p>
                         <textarea
-                            value={playerData}
-                            onChange={(e) => setPlayerData(e.target.value)}
+                            value={playerNames}
+                            onChange={(e) => setPlayerNames(e.target.value)}
                             rows="10"
                             className="w-full mt-1 p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-                            placeholder="Juan Pérez, 1A\nMaria García, 2B\n..."
+                            placeholder="Juan Pérez\nMaria García\n..."
                         />
                         <div className="flex justify-end space-x-2 mt-6">
                             <button onClick={onClose} className="py-2 px-5 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-semibold rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-all">Cancelar</button>
@@ -488,42 +326,6 @@ ${message}
                     setIsEditing(false);
                     setSelectedMatch(null);
                     showMessage("Partido actualizado con éxito.");
-
-                    // --- Create detailed Telegram message ---
-                    const homeTeamName = getTeamName(selectedMatch.homeTeamId);
-                    const awayTeamName = getTeamName(selectedMatch.awayTeamId);
-
-                    let scorersMessage = "\n*Anotadores:*\n";
-                    const homeScorers = scorers.filter(s => s.teamId === selectedMatch.homeTeamId);
-                    const awayScorers = scorers.filter(s => s.teamId === selectedMatch.awayTeamId);
-
-                    if (homeScorers.length > 0) {
-                        scorersMessage += `*${homeTeamName}:*\n`;
-                        homeScorers.forEach(s => {
-                            scorersMessage += `- ${getPlayerName(s.playerId)} (${s.count})\n`;
-                        });
-                    }
-
-                    if (awayScorers.length > 0) {
-                        scorersMessage += `*${awayTeamName}:*\n`;
-                        awayScorers.forEach(s => {
-                            scorersMessage += `- ${getPlayerName(s.playerId)} (${s.count})\n`;
-                        });
-                    }
-                    
-                    if (homeScorers.length === 0 && awayScorers.length === 0) {
-                        scorersMessage = "\nSin anotadores registrados.";
-                    }
-
-                    const notificationMessage = `*Resultado de Partido Registrado*\n\n` +
-                        `*Liga:* ${getLeagueName(selectedMatch.leagueId)}\n` + 
-                        `*Fecha:* ${selectedMatch.date}\n\n` + 
-                        `*Resultado Final:*\n` + 
-                        `${homeTeamName} *${scoreHome} - ${scoreAway}* ${awayTeamName}\n` + 
-                        `${scorersMessage}`;
-
-                    sendTelegramNotification(notificationMessage, user.email);
-
                 } catch (e) {
                     console.error("Error al guardar el partido:", e);
                     showMessage("Error al guardar el partido.");
@@ -559,15 +361,6 @@ ${message}
                         setIsEditing(false);
                         setSelectedMatch(null);
                         showMessage("Partido anulado con éxito (Empate 0-0).");
-
-                        const notificationMessage = `*Partido Anulado*\n\n` +
-                            `*Liga:* ${getLeagueName(selectedMatch.leagueId)}\n` +
-                            `*Fecha:* ${selectedMatch.date}\n\n` +
-                            `*Partido:*\n` +
-                            `${getTeamName(selectedMatch.homeTeamId)} vs ${getTeamName(selectedMatch.awayTeamId)}\n\n` +
-                            `El partido ha sido anulado y registrado como un empate 0-0.`;
-
-                        sendTelegramNotification(notificationMessage, user.email);
                     } catch (e) {
                         console.error("Error al anular el partido:", e);
                         showMessage("Error al anular el partido.");
@@ -651,7 +444,7 @@ ${message}
             );
         };
 
-        const LeagueCard = ({ league, teams, players, appId, db, showMessage, onMatchDayChange, onEditTeam, onAddPlayers, onAddTeam, onDeleteTeam }) => {
+        const LeagueCard = ({ league, teams, players, appId, db, showMessage, onMatchDayChange, onEditTeam, onAddPlayers, onAddNewTeam }) => {
             const [isExpanded, setIsExpanded] = useState(false);
             const dayOptions = [ { value: 1, label: 'Lunes' }, { value: 2, label: 'Martes' }, { value: 3, label: 'Miércoles' }, { value: 4, label: 'Jueves' }, { value: 5, label: 'Viernes' }, { value: 6, label: 'Sábado' }, { value: 0, label: 'Domingo' } ];
 
@@ -663,22 +456,6 @@ ${message}
                         showMessage("Jugador eliminado con éxito.");
                     } catch (e) { console.error("Error al eliminar jugador:", e); showMessage("Error al eliminar jugador."); }
                 }
-            };
-
-            const handleAdd = () => {
-                if (teams.length >= 6) {
-                    showMessage("Una liga no puede tener más de 6 equipos.");
-                    return;
-                }
-                onAddTeam(league.id);
-            };
-
-            const handleDelete = (teamId) => {
-                if (teams.length <= 4) {
-                    showMessage("Una liga debe tener al menos 4 equipos.");
-                    return;
-                }
-                onDeleteTeam(teamId);
             };
 
             return (
@@ -698,11 +475,6 @@ ${message}
                     </div>
                     {isExpanded && (
                         <div className="mt-4 space-y-4">
-                            <div className="border-t dark:border-gray-700 pt-4">
-                                <button onClick={handleAdd} className="btn-primary w-full flex items-center justify-center disabled:bg-gray-400" disabled={teams.length >= 6}>
-                                    <PlusIcon className="w-5 h-5 mr-2" />Añadir Equipo
-                                </button>
-                            </div>
                             {teams.map(team => (
                                 <div key={team.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow space-y-2">
                                     <div className="flex items-center justify-between">
@@ -712,9 +484,6 @@ ${message}
                                             <button onClick={() => onEditTeam(team)} className="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
                                                 <EditIcon className="w-4 h-4" />
                                             </button>
-                                            <button onClick={() => handleDelete(team.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors disabled:text-gray-400 disabled:hover:bg-transparent" disabled={teams.length <= 4}>
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
                                         </div>
                                         <button onClick={() => onAddPlayers(team)} className="btn-primary text-xs py-1 px-3">Añadir Jugadores</button>
                                     </div>
@@ -722,7 +491,7 @@ ${message}
                                         {players.filter(p => p.teamId === team.id).length > 0 ? (
                                             players.filter(p => p.teamId === team.id).map(player => (
                                                 <li key={player.id} className="flex items-center justify-between">
-                                                    <span>{player.name} <span className="text-xs text-gray-500">({player.group})</span></span>
+                                                    <span>{player.name}</span>
                                                     <button onClick={() => handleDeletePlayer(player.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><TrashIcon className="w-4 h-4" /></button>
                                                 </li>
                                             ))
@@ -732,20 +501,35 @@ ${message}
                                     </ul>
                                 </div>
                             ))}
+                            <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700 flex justify-center">
+                                <button onClick={() => onAddNewTeam(league.id)} className="btn-primary flex items-center text-sm py-2 px-4">
+                                    <PlusIcon className="w-4 h-4 mr-2" />
+                                    Añadir Nuevo Equipo
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
             );
         };
 
-        const AppContent = ({ user, handleLogin, handleLogout, email, setEmail, password, setPassword, showMessage, isAuthReady }) => {
-            const {
-                tournaments, selectedTournamentId, setSelectedTournamentId,
-                leagues, teams, players, matches,
-                isLoading, setIsLoading, appId
-            } = useData();
-
+        const App = () => {
             const [view, setView] = useState('standings');
+            const [tournaments, setTournaments] = useState([]);
+            const [selectedTournamentId, setSelectedTournamentId] = useState('');
+            const [leagues, setLeagues] = useState([]);
+            const [teams, setTeams] = useState([]);
+            const [players, setPlayers] = useState([]);
+            const [matches, setMatches] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [user, setUser] = useState(null);
+            const [appId, setAppId] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [modalMessage, setModalMessage] = useState('');
+            const [selectedSport, setSelectedSport] = useState('Fútbol');
+            const [isAuthReady, setIsAuthReady] = useState(false);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
             const [selectedDateFilter, setSelectedDateFilter] = useState('');
             const [selectedLeagueFilter, setSelectedLeagueFilter] = useState('');
             const [selectedStandingsLeagueFilter, setSelectedStandingsLeagueFilter] = useState('');
@@ -756,28 +540,94 @@ ${message}
             const [matchDetails, setMatchDetails] = useState(null);
             const [editingTeam, setEditingTeam] = useState(null);
             const [addingPlayersTeam, setAddingPlayersTeam] = useState(null);
-            const [postponeMatchDate, setPostponeMatchDate] = useState('');
-            const [selectedTeamIdForDetail, setSelectedTeamIdForDetail] = useState(null);
-            const [rosterSport, setRosterSport] = useState('');
 
-            const handleViewTeamDetails = (teamId) => {
-                setSelectedTeamIdForDetail(teamId);
-                setView('teamDetail');
-            };
-
+            const showMessage = (message) => { setModalMessage(message); setShowModal(true); };
             const handleMatchClick = (match) => { setMatchDetails(match); };
 
             const getTeamName = useCallback((teamId) => teams.find(t => t.id === teamId)?.name || 'Equipo Desconocido', [teams]);
             const getTeamLogo = useCallback((teamId) => teams.find(t => t.id === teamId)?.logoUrl || '', [teams]);
             const getPlayerName = useCallback((playerId) => players.find(p => p.id === playerId)?.name || 'Jugador Desconocido', [players]);
-            
+
+            useEffect(() => {
+                const initFirebase = async () => {
+                    try {
+                        const { initializeApp, getAuth, onAuthStateChanged, getFirestore } = window.firebaseModules;
+                        const firebaseConfig = { apiKey: "AIzaSyBHX9ezfBiEZhxIDZTr-OTB5hgKV-zt0G4", authDomain: "torneos-lasalle-2.firebaseapp.com", projectId: "torneos-lasalle-2", storageBucket: "torneos-lasalle-2.firebasestorage.app", messagingSenderId: "860168864523", appId: "1:860168864523:web:1da5a47fa8ccb20def980e" };
+                        const app = initializeApp(firebaseConfig);
+                        const auth = getAuth(app);
+                        setAppId('lasalle-secundaria-deportes'); // ID para la base de datos de Secundaria
+                        window.firebaseApp = { ...window.firebaseApp, app, auth, db: getFirestore(app) };
+
+                        onAuthStateChanged(auth, (user) => {
+                            setUser(user);
+                            setIsAuthReady(true);
+                            setIsLoading(false);
+                        });
+                    } catch (e) {
+                        console.error("Firebase init error", e);
+                        setIsLoading(false);
+                        document.getElementById('root').innerHTML = `<div class="p-8 text-center text-red-500">Error: No se pudo cargar Firebase.</div>`;
+                    }
+                };
+                initFirebase();
+            }, []);
+
+            useEffect(() => {
+                if (!isAuthReady || !appId) return;
+                
+                const publicDataPath = `artifacts/${appId}/public/data`;
+
+                const { collection, onSnapshot } = window.firebaseModules;
+                const db = window.firebaseApp.db;
+                const collections = ['tournaments', 'leagues', 'teams', 'players', 'matches'];
+                const setters = { tournaments: setTournaments, leagues: setLeagues, teams: setTeams, players: setPlayers, matches: setMatches };
+
+                const unsubscribers = collections.map(col =>
+                    onSnapshot(collection(db, `${publicDataPath}/${col}`), (snapshot) => {
+                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        if (col === 'tournaments') {
+                            data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                            setTournaments(data);
+                            if (data.length > 0 && (!selectedTournamentId || !data.find(t => t.id === selectedTournamentId))) {
+                                setSelectedTournamentId(data[0].id);
+                            } else if (data.length === 0) {
+                                setSelectedTournamentId('');
+                            }
+                        } else {
+                            setters[col](data);
+                        }
+                    })
+                );
+                return () => unsubscribers.forEach(unsub => unsub());
+            }, [appId, isAuthReady, selectedTournamentId]);
+
+            const handleLogin = async () => {
+                const { signInWithEmailAndPassword } = window.firebaseModules;
+                const auth = window.firebaseApp.auth;
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    showMessage("Inicio de sesión exitoso.");
+                } catch (error) {
+                    showMessage("Error al iniciar sesión: " + error.message);
+                }
+            };
+
+            const handleLogout = async () => {
+                const { signOut } = window.firebaseModules;
+                const auth = window.firebaseApp.auth;
+                try {
+                    await signOut(auth);
+                    showMessage("Sesión cerrada.");
+                } catch (error) {
+                    showMessage("Error al cerrar sesión: " + error.message);
+                }
+            };
+
             const handleMatchDayChange = async (leagueId, day) => {
                 if (!user || !appId) return;
                 const { doc, updateDoc } = window.firebaseModules;
                 try {
                     await updateDoc(doc(window.firebaseApp.db, `artifacts/${appId}/public/data/leagues`, leagueId), { matchDay: day ? parseInt(day, 10) : null });
-                    const dayLabel = day ? ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][parseInt(day, 10)] : 'ninguno';
-                    sendTelegramNotification(`Día de partido actualizado para liga ${getLeagueName(leagueId)} a ${dayLabel}`, user.email);
                 } catch (e) { console.error("Error updating match day:", e); showMessage("Error al actualizar el día."); }
             };
 
@@ -795,7 +645,6 @@ ${message}
                 try {
                     await updateDoc(doc(window.firebaseApp.db, `artifacts/${appId}/public/data/teams`, teamId), { name, logoUrl });
                     showMessage("Equipo actualizado con éxito.");
-                    sendTelegramNotification(`Equipo actualizado: ${name} (ID: ${teamId})`, user.email);
                     handleCloseEditTeam();
                 } catch (e) {
                     console.error("Error updating team:", e); showMessage("Error al actualizar el equipo.");
@@ -806,25 +655,19 @@ ${message}
                 setAddingPlayersTeam(team);
             };
 
-            const handleAddMultiplePlayers = async (teamId, players) => {
+            const handleAddMultiplePlayers = async (teamId, names) => {
                 if (!user || !appId) return;
                 const { db } = window.firebaseApp;
                 const { doc, setDoc } = window.firebaseModules;
                 
-                const playerPromises = players.map(player => {
+                const playerPromises = names.map(name => {
                     const playerId = crypto.randomUUID();
-                    return setDoc(doc(db, `artifacts/${appId}/public/data/players`, playerId), { 
-                        id: playerId, 
-                        name: player.name, 
-                        group: player.group, 
-                        teamId 
-                    });
+                    return setDoc(doc(db, `artifacts/${appId}/public/data/players`, playerId), { id: playerId, name, teamId });
                 });
 
                 try {
                     await Promise.all(playerPromises);
-                    showMessage(`${players.length} jugador(es) añadido(s) con éxito.`);
-                    sendTelegramNotification(`Jugadores añadidos al equipo ${getTeamName(teamId)}: ${players.map(p => p.name).join(', ')}`, user.email);
+                    showMessage(`${names.length} jugador(es) añadido(s) con éxito.`);
                     setAddingPlayersTeam(null); // Close modal on success
                 } catch (e) {
                     console.error("Error adding multiple players:", e);
@@ -832,58 +675,32 @@ ${message}
                 }
             };
 
-            const handleAddTeam = async (leagueId) => {
+            const handleAddNewTeam = async (leagueId) => {
                 if (!user || !appId) return;
+                const teamName = prompt("Introduce el nombre del nuevo equipo:");
+                if (!teamName || !teamName.trim()) return;
+
+                setIsLoading(true);
                 const { db } = window.firebaseApp;
                 const { doc, setDoc } = window.firebaseModules;
+                
+                const teamsInLeague = teams.filter(t => t.leagueId === leagueId).length;
                 const teamId = crypto.randomUUID();
                 const newTeam = {
                     id: teamId,
-                    name: `Nuevo Equipo ${teams.filter(t => t.leagueId === leagueId).length + 1}`,
+                    name: teamName.trim(),
                     leagueId,
-                    logoUrl: `https://placehold.co/100x100/A0A0A0/FFF?text=N`
+                    logoUrl: `https://placehold.co/100x100/A0A0A0/FFF?text=${teamsInLeague + 1}`
                 };
+
                 try {
                     await setDoc(doc(db, `artifacts/${appId}/public/data/teams`, teamId), newTeam);
-                    showMessage("Equipo añadido con éxito.");
-                    sendTelegramNotification(`Equipo añadido a liga ${getLeagueName(leagueId)}: ${newTeam.name}`, user.email);
+                    showMessage(`Equipo "${teamName.trim()}" añadido con éxito.`);
                 } catch (e) {
-                    console.error("Error adding team:", e);
+                    console.error("Error adding new team:", e);
                     showMessage("Error al añadir el equipo.");
                 }
-            };
-
-            const handleDeleteTeam = async (teamId) => {
-                if (!user || !appId) return;
-                if (!confirm("¿Estás seguro de que quieres eliminar este equipo? Se borrarán también sus jugadores y partidos asociados.")) return;
-                
-                const { db } = window.firebaseApp;
-                const { collection, query, where, getDocs, doc, deleteDoc, writeBatch } = window.firebaseModules;
-
-                try {
-                    const batch = writeBatch(db);
-
-                    // Delete players in the team
-                    const playersQuery = query(collection(db, `artifacts/${appId}/public/data/players`), where("teamId", "==", teamId));
-                    const playersSnapshot = await getDocs(playersQuery);
-                    playersSnapshot.forEach(playerDoc => batch.delete(playerDoc.ref));
-
-                    // Delete matches involving the team
-                    const homeMatchesQuery = query(collection(db, `artifacts/${appId}/public/data/matches`), where("homeTeamId", "==", teamId));
-                    const awayMatchesQuery = query(collection(db, `artifacts/${appId}/public/data/matches`), where("awayTeamId", "==", teamId));
-                    const [homeMatchesSnapshot, awayMatchesSnapshot] = await Promise.all([getDocs(homeMatchesQuery), getDocs(awayMatchesQuery)]);
-                    homeMatchesSnapshot.forEach(matchDoc => batch.delete(matchDoc.ref));
-                    awayMatchesSnapshot.forEach(matchDoc => batch.delete(matchDoc.ref));
-
-                    // Delete the team itself
-                    batch.delete(doc(db, `artifacts/${appId}/public/data/teams`, teamId));
-
-                    await batch.commit();
-                    showMessage("Equipo y datos asociados eliminados con éxito.");
-                } catch (e) {
-                    console.error("Error deleting team:", e);
-                    showMessage("Error al eliminar el equipo y sus datos asociados.");
-                }
+                setIsLoading(false);
             };
 
             const handleDeleteTournament = async () => {
@@ -909,7 +726,7 @@ ${message}
 
                             if (teamIds.length > 0) {
                                 const playersQuery = query(collection(db, `artifacts/${appId}/public/data/players`), where("teamId", "in", teamIds));
-                                const playersSnapshot = await getDocs(playersSnapshot);
+                                const playersSnapshot = await getDocs(playersQuery);
                                 await Promise.all(playersSnapshot.docs.map(d => deleteDoc(d.ref)));
                             }
                             await Promise.all(teamsSnapshot.docs.map(d => deleteDoc(d.ref)));
@@ -942,157 +759,40 @@ ${message}
                     try {
                         const q = query(collection(db, `artifacts/${appId}/public/data/matches`), where("leagueId", "in", visibleLeagueIds));
                         const existingMatches = await getDocs(q);
-                        console.log(`handleDeleteSchedule: Found ${existingMatches.docs.length} matches to delete.`); // Added log
-                        if (existingMatches.docs.length > 0) {
-                            await Promise.all(existingMatches.docs.map(matchDoc => deleteDoc(matchDoc.ref)));
-                            showMessage("Calendario del torneo actual borrado.");
-                        } else {
-                            showMessage("No se encontraron partidos para borrar en el calendario actual."); // Added message for no matches
-                        }
-                    } catch (e) { console.error("Error deleting schedule:", e); showMessage("Error al borrar el calendario: " + e.message); } 
-                    setIsLoading(false);
-                }
-            };
-
-            const handlePostponeMatchday = async (dateToPostpone, leagues) => {
-                if (!user || !appId || !dateToPostpone) {
-                    showMessage("Por favor, selecciona una fecha para posponer.");
-                    return;
-                }
-
-                if (!confirm(`¿Estás seguro de que quieres posponer la jornada del ${dateToPostpone}? Esto moverá todos los partidos de esa fecha y las fechas futuras una semana.`)) {
-                    return;
-                }
-
-                setIsLoading(true);
-                const { db } = window.firebaseApp;
-                const { collection, query, where, getDocs, doc, updateDoc, writeBatch } = window.firebaseModules;
-                const matchesRef = collection(db, `artifacts/${appId}/public/data/matches`);
-
-                try {
-                    // Get all matches from the date to postpone onwards
-                    const q = query(matchesRef, where("date", ">=", dateToPostpone));
-                    const snapshot = await getDocs(q);
-
-                    const matchesToUpdate = [];
-                    snapshot.forEach(d => matchesToUpdate.push({ id: d.id, ...d.data() }));
-
-                    // Sort matches by date to ensure correct shifting
-                    matchesToUpdate.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                    const batch = writeBatch(db);
-
-                    for (const match of matchesToUpdate) {
-                        const league = leagues.find(l => l.id === match.leagueId);
-                        if (!league || league.matchDay == null) continue; // Skip if league not found or no matchDay assigned
-
-                        let currentDate = new Date(match.date);
-                        currentDate.setDate(currentDate.getDate() + 7); // Move forward by one week
-
-                        // Find the next available Friday that is not a holiday/CTE
-                        while (isHolidayOrCTE(currentDate.toISOString().split('T')[0]) || currentDate.getDay() !== league.matchDay) {
-                            currentDate.setDate(currentDate.getDate() + 1);
-                        }
-                        
-                        batch.update(doc(matchesRef, match.id), { date: currentDate.toISOString().split('T')[0] });
-                    }
-
-                    await batch.commit();
-                    showMessage(`Jornada del ${dateToPostpone} pospuesta con éxito.`);
-                } catch (e) {
-                    console.error("Error postponing matchday:", e);
-                    showMessage("Error al posponer la jornada.");
-                } finally {
+                        await Promise.all(existingMatches.docs.map(matchDoc => deleteDoc(matchDoc.ref)));
+                        showMessage("Calendario del torneo actual borrado.");
+                    } catch (e) { console.error("Error deleting schedule:", e); showMessage("Error al borrar el calendario."); } 
                     setIsLoading(false);
                 }
             };
 
             const createLeaguesAndTeams = async () => {
                 if (!user || !appId) return;
-                const tournamentName = prompt(`Introduce un nombre para el nuevo torneo:`, `Torneo Primaria ${new Date().getFullYear()}-${new Date().getFullYear() + 1}`);
+                const tournamentName = prompt(`Introduce un nombre para el nuevo torneo de ${selectedSport}:`, `Torneo ${selectedSport} ${new Date().getFullYear()}`);
                 if (!tournamentName) return;
 
                 setIsLoading(true);
                 const { db } = window.firebaseApp;
                 const { collection, doc, setDoc } = window.firebaseModules;
-                
-                const leaguesData = [
-                    { name: "Futbol 1ro y 2do de Primaria", sport: "Fútbol", grades: "1ro y 2do", matchTime: "9:00-10:00" },
-                    { name: "Basquetbol 1ro y 2do de Primaria", sport: "Básquetbol", grades: "1ro y 2do", matchTime: "9:00-10:00" },
-                    { name: "Futbol 3ro y 4to de Primaria", sport: "Fútbol", grades: "3ro y 4to", matchTime: "8:00-9:00" },
-                    { name: "Basquetbol 3ro y 4to de Primaria", sport: "Básquetbol", grades: "3ro y 4to", matchTime: "8:00-9:00" },
-                    { name: "Futbol 5to y 6to de Primaria", sport: "Fútbol", grades: "5to y 6to", matchTime: "7:00-8:00" },
-                    { name: "Basquetbol 5to y 6to de Primaria", sport: "Básquetbol", grades: "5to y 6to", matchTime: "7:00-8:00" },
-                ];
-
+                const leagueNames = ['Grupos A Varonil', 'Grupos A Femenil', 'Grupos B Varonil', 'Grupos B Femenil'];
                 const tournamentId = crypto.randomUUID();
-                const newTournament = { id: tournamentId, name: tournamentName, createdAt: new Date().toISOString() };
+                const newTournament = { id: tournamentId, name: tournamentName, sport: selectedSport, createdAt: new Date().toISOString() };
 
                 try {
                     await setDoc(doc(db, `artifacts/${appId}/public/data/tournaments`, tournamentId), newTournament);
 
-                    for (const leagueData of leaguesData) {
+                    for (const name of leagueNames) {
                         const leagueId = crypto.randomUUID();
-                        await setDoc(doc(db, `artifacts/${appId}/public/data/leagues`, leagueId), { 
-                            id: leagueId, 
-                            tournamentId,
-                            matchDay: 5, // Default to Friday
-                            ...leagueData 
-                        });
-                        const teamLogos = {
-                            "Futbol 1ro y 2do de Primaria": [
-                                { name: "Club América", logo: "https://i.imgur.com/FE5b9iT.png" },
-                                { name: "Chivas Guadalajara", logo: "https://i.imgur.com/gJ6Z2p3.png" },
-                                { name: "Cruz Azul", logo: "https://i.imgur.com/Lnd22F2.png" },
-                                { name: "Tigres UANL", logo: "https://i.imgur.com/c055j4g.png" },
-                            ],
-                            "Futbol 3ro y 4to de Primaria": [
-                                { name: "Manchester United", logo: "https://i.imgur.com/1c4so0J.png" },
-                                { name: "Liverpool FC", logo: "https://i.imgur.com/Yf2jO2j.png" },
-                                { name: "Chelsea FC", logo: "https://i.imgur.com/dAnm9nU.png" },
-                                { name: "Arsenal FC", logo: "https://i.imgur.com/m0t2Gz4.png" },
-                            ],
-                            "Futbol 5to y 6to de Primaria": [
-                                { name: "Real Madrid", logo: "https://i.imgur.com/J3Jp4p4.png" },
-                                { name: "FC Barcelona", logo: "https://i.imgur.com/N414Q4F.png" },
-                                { name: "Atletico Madrid", logo: "https://i.imgur.com/i4u3TfC.png" },
-                                { name: "Valencia CF", logo: "https://i.imgur.com/d3j3j3j.png" },
-                            ],
-                            "Basquetbol 1ro y 2do de Primaria": [
-                                { name: "Chiapas", logo: "https://i.imgur.com/6y6y6y6.png" },
-                                { name: "Monterrey", logo: "https://i.imgur.com/7z7z7z7.png" },
-                                { name: "Jalisco", logo: "https://i.imgur.com/8x8x8x8.png" },
-                                { name: "Cd Mexico", logo: "https://i.imgur.com/9y9y9y9.png" },
-                            ],
-                            "Basquetbol 3ro y 4to de Primaria": [
-                                { name: "Dallas", logo: "https://i.imgur.com/A0A0A0A.png" },
-                                { name: "Lakers", logo: "https://i.imgur.com/B1B1B1B.png" },
-                                { name: "Chicago", logo: "https://i.imgur.com/C2C2C2C.png" },
-                                { name: "Toronto", logo: "https://i.imgur.com/D3D3D3D.png" },
-                            ],
-                            "Basquetbol 5to y 6to de Primaria": [
-                                { name: "Brasil", logo: "https://i.imgur.com/E4E4E4E.png" },
-                                { name: "Francia", logo: "https://i.imgur.com/F5F5F5F.png" },
-                                { name: "Mexico", logo: "https://i.imgur.com/G6G6G6G.png" },
-                                { name: "España", logo: "https://i.imgur.com/H7H7H7H.png" },
-                            ],
-                            // Add more for Tocho/Voleibol if needed, or they will use default placeholder
-                        };
-
-                        const teamsToCreate = teamLogos[leagueData.name] || [
-                            { name: "Equipo 1", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=1` },
-                            { name: "Equipo 2", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=2` },
-                            { name: "Equipo 3", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=3` },
-                            { name: "Equipo 4", logo: `https://placehold.co/100x100/A0A0A0/FFF?text=4` },
-                        ];
-
-                        for (const teamInfo of teamsToCreate) {
+                        await setDoc(doc(db, `artifacts/${appId}/public/data/leagues`, leagueId), { id: leagueId, name, sport: selectedSport, tournamentId });
+                        const teamsInLeague = 4;
+                        for (let i = 1; i <= teamsInLeague; i++) {
+                            const teamName = `Equipo ${i}`;
                             const teamId = crypto.randomUUID();
                             await setDoc(doc(db, `artifacts/${appId}/public/data/teams`, teamId), { 
                                 id: teamId, 
-                                name: teamInfo.name, 
-                                leagueId,
-                                logoUrl: teamInfo.logo 
+                                name: teamName, 
+                                leagueId, 
+                                logoUrl: `https://placehold.co/100x100/A0A0A0/FFF?text=${i}` 
                             });
                         }
                     }
@@ -1102,9 +802,12 @@ ${message}
             };
 
             const generateSchedule = async (visibleLeagues, visibleTeams, isInitial) => {
-                console.log("generateSchedule called. isInitial:", isInitial, "scheduleStartDate:", scheduleStartDate, "scheduleEndDate:", scheduleEndDate);
                 if (isInitial && !scheduleStartDate) {
                     showMessage("Selecciona una fecha de inicio para el calendario base.");
+                    return;
+                }
+                if (!isInitial && !scheduleEndDate) {
+                    showMessage("Selecciona una fecha de fin para extender el calendario.");
                     return;
                 }
 
@@ -1119,7 +822,7 @@ ${message}
 
                 try {
                     const visibleLeagueIds = visibleLeagues.map(l => l.id);
-
+                    
                     if (isInitial) {
                         const q = query(matchesRef, where("leagueId", "in", visibleLeagueIds));
                         const existingMatches = await getDocs(q);
@@ -1135,65 +838,66 @@ ${message}
                             lastMatchDate = new Date(Math.max.apply(null, dates));
                         }
                     }
+                    
+                    const startDate = lastMatchDate ? new Date(lastMatchDate) : new Date(scheduleStartDate);
+                    if(!lastMatchDate) startDate.setMinutes(startDate.getMinutes() + startDate.getTimezoneOffset());
 
-                    let currentSchedulingDate = lastMatchDate ? new Date(lastMatchDate) : new Date(scheduleStartDate);
-                    if(!lastMatchDate) currentSchedulingDate.setMinutes(currentSchedulingDate.getMinutes() + currentSchedulingDate.getTimezoneOffset());
+                    const endDate = isInitial ? null : new Date(scheduleEndDate);
+                    if(endDate) endDate.setMinutes(endDate.getMinutes() + endDate.getTimezoneOffset());
 
-                    const totalWeeksToGenerate = isInitial ? 35 : 10; // Generate 35 weeks for initial, 10 for extension
-
-                    const leagueOriginalTeams = new Map();
                     visibleLeagues.forEach(league => {
-                        let teamsForLeague = visibleTeams.filter(team => team.leagueId === league.id);
-                        if (teamsForLeague.length % 2 !== 0) teamsForLeague.push({ id: 'bye', name: 'Descanso' });
-                        leagueOriginalTeams.set(league.id, [...teamsForLeague]);
-                    });
+                        if (league.matchDay == null) return;
+                        let leagueTeams = visibleTeams.filter(team => team.leagueId === league.id);
+                        if (leagueTeams.length < 2) return;
+                        if (leagueTeams.length % 2 !== 0) leagueTeams.push({ id: 'bye', name: 'Descanso' });
 
-                    for (let week = 0; week < totalWeeksToGenerate; week++) {
-                        if (week > 0) {
-                            currentSchedulingDate.setDate(currentSchedulingDate.getDate() + 7);
-                        }
+                        const numRounds = leagueTeams.length - 1;
+                        const roundsToGenerate = isInitial ? 2 : 10; 
                         
-                        const targetDay = 5; // Friday
-                        while (isHolidayOrCTE(currentSchedulingDate.toISOString().split('T')[0]) || currentSchedulingDate.getDay() !== targetDay) {
-                            currentSchedulingDate.setDate(currentSchedulingDate.getDate() + 1);
+                        let currentRoundOffset = 0;
+                        if (!isInitial && lastMatchDate) {
+                           const allMatchesForLeague = matches.filter(m => m.leagueId === league.id).sort((a,b) => new Date(a.date) - new Date(b.date));
+                           if(allMatchesForLeague.length > 0) {
+                               const roundsPlayed = Math.ceil(allMatchesForLeague.length / (leagueTeams.length / 2));
+                               currentRoundOffset = roundsPlayed;
+                           }
                         }
 
-                        if (!isInitial && scheduleEndDate && currentSchedulingDate > new Date(scheduleEndDate)) {
-                            break; 
-                        }
 
-                        const matchDateString = currentSchedulingDate.toISOString().split('T')[0];
+                        for (let leg = 0; leg < roundsToGenerate; leg++) {
+                            let roundTeams = [...leagueTeams];
+                            const legOffset = isInitial ? leg : currentRoundOffset + leg;
 
-                        visibleLeagues.forEach(league => {
-                            if (league.matchDay == null || league.matchDay !== targetDay) { 
-                                return;
-                            }
-                            let leagueTeams = leagueOriginalTeams.get(league.id);
-                            if (!leagueTeams || leagueTeams.length < 2) {
-                                return;
-                            }
-
-                            let currentRoundTeams = [...leagueTeams];
-                            for (let r = 0; r < week; r++) {
-                                currentRoundTeams.splice(1, 0, currentRoundTeams.pop());
-                            }
-
-                            for (let i = 0; i < currentRoundTeams.length / 2; i++) {
-                                const home = currentRoundTeams[i];
-                                const away = currentRoundTeams[currentRoundTeams.length - 1 - i];
-                                if (home.id !== 'bye' && away.id !== 'bye') {
-                                    const newMatch = { id: crypto.randomUUID(), leagueId: league.id, homeTeamId: home.id, awayTeamId: away.id, date: matchDateString, scoreHome: null, scoreAway: null, scorers: [] };
-                                    newMatches.push(newMatch);
+                            for (let round = 0; round < numRounds; round++) {
+                                let date = new Date(startDate);
+                                if(isInitial) {
+                                    const dayOffset = (league.matchDay - date.getDay() + 7) % 7;
+                                    date.setDate(date.getDate() + dayOffset + (round * 7) + (leg * numRounds * 7));
+                                } else {
+                                    const baseDate = new Date(lastMatchDate);
+                                    const dayOffset = (league.matchDay - baseDate.getDay() + 7) % 7;
+                                    date = new Date(baseDate.setDate(baseDate.getDate() + dayOffset + 7 + (round * 7) + (leg * numRounds * 7) ));
                                 }
-                            }
-                        });
-                    }
+                                
+                                if (endDate && date > endDate) continue;
 
+                                for (let i = 0; i < roundTeams.length / 2; i++) {
+                                    const home = (legOffset % 2 === 0) ? roundTeams[i] : roundTeams[roundTeams.length - 1 - i];
+                                    const away = (legOffset % 2 === 0) ? roundTeams[roundTeams.length - 1 - i] : roundTeams[i];
+                                    if (home.id !== 'bye' && away.id !== 'bye') {
+                                        newMatches.push({ id: crypto.randomUUID(), leagueId: league.id, homeTeamId: home.id, awayTeamId: away.id, date: date.toISOString().split('T')[0], scoreHome: null, scoreAway: null, scorers: [] });
+                                    }
+                                }
+                                roundTeams.splice(1, 0, roundTeams.pop());
+                            }
+                        }
+                    });
+                    
                     if(newMatches.length > 0) {
                         await Promise.all(newMatches.map(match => setDoc(doc(matchesRef, match.id), match)));
                         showMessage(isInitial ? "Calendario base generado." : "Calendario extendido.");
                     } else {
-                        showMessage("No se generaron nuevos partidos. La fecha de fin podría ser demasiado temprana o no hay ligas válidas.");
+                        showMessage("No se generaron nuevos partidos. La fecha de fin podría ser demasiado temprana.");
                     }
 
                 } catch (e) { console.error("Error generating schedule:", e); showMessage("Error al generar el calendario."); } 
@@ -1206,7 +910,7 @@ ${message}
             const calculateStandings = useCallback((leagueId, visibleTeams, visibleMatches) => {
                 const leagueTeams = visibleTeams.filter(t => t.leagueId === leagueId);
                 const leagueMatches = visibleMatches.filter(m => m.leagueId === leagueId && m.scoreHome !== null);
-                const standingsMap = leagueTeams.reduce((acc, team) => ({ ...acc, [team.id]: { id: team.id, teamName: team.name, logoUrl: team.logoUrl, played: 0, wins: 0, draws: 0, losses: 0, points: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 } }), {});
+                const standingsMap = leagueTeams.reduce((acc, team) => ({ ...acc, [team.id]: { teamName: team.name, logoUrl: team.logoUrl, played: 0, wins: 0, draws: 0, losses: 0, points: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 } }), {});
 
                 leagueMatches.forEach(match => {
                     const home = standingsMap[match.homeTeamId], away = standingsMap[match.awayTeamId];
@@ -1214,8 +918,8 @@ ${message}
                     home.played++; away.played++;
                     home.goalsFor += match.scoreHome; home.goalsAgainst += match.scoreAway;
                     away.goalsFor += match.scoreAway; away.goalsAgainst += match.scoreHome;
-                    if (match.scoreHome > match.scoreAway) { home.wins++; away.losses++; home.points += 3; } 
-                    else if (match.scoreHome < match.scoreAway) { away.wins++; home.losses++; away.points += 3; } 
+                    if (match.scoreHome > match.scoreAway) { home.wins++; away.losses++; home.points += 3; }
+                    else if (match.scoreHome < match.scoreAway) { away.wins++; home.losses++; away.points += 3; }
                     else { home.draws++; away.draws++; home.points++; away.points++; }
                     home.goalDifference = home.goalsFor - home.goalsAgainst;
                     away.goalDifference = away.goalsFor - away.goalsAgainst;
@@ -1224,16 +928,8 @@ ${message}
             }, []);
 
             const sortLeagues = (a, b) => {
-                const sportOrder = ['Fútbol', 'Básquetbol', 'Tocho', 'Voleibol'];
-                const gradeOrder = [/1ro y 2do|1ro/, /3ro y 4to|3ro/, /5to y 6to|5to/];
-
-                const sportComparison = sportOrder.indexOf(a.sport) - sportOrder.indexOf(b.sport);
-                if (sportComparison !== 0) return sportComparison;
-
-                const gradeIndexA = gradeOrder.findIndex(regex => regex.test(a.name));
-                const gradeIndexB = gradeOrder.findIndex(regex => regex.test(b.name));
-
-                return gradeIndexA - gradeIndexB;
+                const order = ['1ro Varonil', '1ro Femenil', '3ro Varonil', '3ro Femenil', 'Areas Varonil', 'Areas Femenil'];
+                return order.indexOf(a.name) - order.indexOf(b.name);
             };
 
             const calculateTopScorers = useCallback((leagueId, visibleMatches, visiblePlayers, visibleTeams) => {
@@ -1329,10 +1025,9 @@ ${message}
                 }, {});
 
                 const sortedLeagueIds = Object.keys(matchesByLeague).sort((a, b) => {
-                    const leagueA = leagues.find(l => l.id === a);
-                    const leagueB = leagues.find(l => l.id === b);
-                    if (!leagueA || !leagueB) return 0;
-                    return sortLeagues(leagueA, leagueB);
+                    const leagueA = getLeagueName(a);
+                    const leagueB = getLeagueName(b);
+                    return sortLeagues({name: leagueA}, {name: leagueB});
                 });
 
                 for (const leagueId of sortedLeagueIds) {
@@ -1390,10 +1085,9 @@ ${message}
                 const filteredMatches = visibleMatches
                     .filter(match => match.date === refereeMatchDate)
                     .sort((a, b) => {
-                        const leagueA = leagues.find(l => l.id === a.leagueId);
-                        const leagueB = leagues.find(l => l.id === b.leagueId);
-                        if (!leagueA || !leagueB) return 0;
-                        return sortLeagues(leagueA, leagueB);
+                        const leagueA = getLeagueName(a.leagueId);
+                        const leagueB = getLeagueName(b.leagueId);
+                        return sortLeagues({name: leagueA}, {name: leagueB});
                     });
 
                 if (filteredMatches.length === 0) {
@@ -1534,136 +1228,6 @@ ${message}
                 showMessage("PDF de Reporte de Torneo generado.");
             };
 
-            const generateTeamRostersPdf = async (selectedSport) => {
-    if (!selectedSport) {
-        showMessage("Por favor, selecciona un deporte para generar la lista.");
-        return;
-    }
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const pageCenter = doc.internal.pageSize.getWidth() / 2;
-
-    // --- Colores La Salle ---
-    const laSalleBlue = '#001E61';
-    const laSalleRed = '#CE0E2D';
-    const lightBlue = '#B3CDE0';
-
-    const schoolLogoUrl = 'https://i.imgur.com/dzDfAiQ.png';
-    const schoolLogoResult = await urlToB64(schoolLogoUrl).catch(e => console.error("Error loading school logo", e));
-
-    const sportLeagues = visibleLeagues
-        .filter(l => l.sport === selectedSport)
-        .sort(sortLeagues);
-
-    if (sportLeagues.length === 0) {
-        doc.setFontSize(12).text("No hay ligas para el deporte seleccionado.", 14, 15);
-        doc.save(`listas_equipos_${selectedSport}.pdf`);
-        return;
-    }
-
-    let isFirstPage = true;
-
-    for (const league of sportLeagues) {
-        if (!isFirstPage) {
-            doc.addPage();
-        }
-        isFirstPage = false;
-
-        let y = 25;
-
-        // Encabezado de la Liga
-        if (schoolLogoResult) {
-            doc.addImage(schoolLogoResult.dataUrl, schoolLogoResult.format.toUpperCase(), 15, 15, 20, 20);
-        }
-        doc.setFontSize(20).setFont(undefined, 'bold');
-        doc.setTextColor(laSalleBlue);
-        doc.text(league.name.toUpperCase(), pageCenter, y, { align: 'center' });
-        y += 15;
-
-        const leagueTeams = visibleTeams.filter(t => t.leagueId === league.id);
-        if (leagueTeams.length === 0) continue;
-
-        // Pre-cargar todos los logos de los equipos de la liga
-        const teamLogoPromises = leagueTeams.map(team => urlToB64(team.logoUrl));
-        const teamLogoResults = await Promise.all(teamLogoPromises);
-        const logoMap = leagueTeams.reduce((map, team, index) => {
-            map[team.id] = teamLogoResults[index];
-            return map;
-        }, {});
-
-        for (let i = 0; i < leagueTeams.length; i += 2) {
-            const team1 = leagueTeams[i];
-            const team2 = leagueTeams[i + 1];
-
-            if (y > 220) { // Check for page break before drawing teams
-                doc.addPage();
-                y = 25;
-                if (schoolLogoResult) {
-                    doc.addImage(schoolLogoResult.dataUrl, schoolLogoResult.format.toUpperCase(), 15, 15, 20, 20);
-                }
-            }
-
-            let finalY1 = y;
-            let finalY2 = y;
-
-            // --- Dibuja Equipo 1 (Izquierda) ---
-            if (team1) {
-                const teamPlayers = visiblePlayers.filter(p => p.teamId === team1.id).map(p => [p.name, p.group || '-']);
-                const teamLogoResult = logoMap[team1.id];
-                
-                doc.setFontSize(14).setFont(undefined, 'bold').setTextColor(laSalleRed);
-                const teamNameX = teamLogoResult ? 28 : 14;
-                if (teamLogoResult) {
-                    doc.addImage(teamLogoResult.dataUrl, teamLogoResult.format.toUpperCase(), 14, y - 5, 10, 10);
-                }
-                doc.text(team1.name, teamNameX, y);
-
-                doc.autoTable({
-                    startY: y + 8,
-                    head: [['Nombre del Jugador', 'Grupo']],
-                    body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados', '']],
-                    theme: 'grid',
-                    headStyles: { fillColor: lightBlue, textColor: laSalleBlue, fontStyle: 'bold' },
-                    styles: { fontSize: 9, cellPadding: 1.5, lineColor: laSalleBlue, lineWidth: 0.1 },
-                    margin: { left: 14, right: pageCenter + 5 },
-                });
-                finalY1 = doc.autoTable.previous.finalY;
-            }
-
-            // --- Dibuja Equipo 2 (Derecha) ---
-            if (team2) {
-                const teamPlayers = visiblePlayers.filter(p => p.teamId === team2.id).map(p => [p.name, p.group || '-']);
-                const teamLogoResult = logoMap[team2.id];
-
-                doc.setFontSize(14).setFont(undefined, 'bold').setTextColor(laSalleRed);
-                const teamNameX = teamLogoResult ? pageCenter + 19 : pageCenter + 10;
-                if (teamLogoResult) {
-                    doc.addImage(teamLogoResult.dataUrl, teamLogoResult.format.toUpperCase(), pageCenter + 10, y - 5, 10, 10);
-                }
-                doc.text(team2.name, teamNameX, y);
-
-                doc.autoTable({
-                    startY: y + 8,
-                    head: [['Nombre del Jugador', 'Grupo']],
-                    body: teamPlayers.length > 0 ? teamPlayers : [['No hay jugadores registrados', '']],
-                    theme: 'grid',
-                    headStyles: { fillColor: lightBlue, textColor: laSalleBlue, fontStyle: 'bold' },
-                    styles: { fontSize: 9, cellPadding: 1.5, lineColor: laSalleBlue, lineWidth: 0.1 },
-                    margin: { left: pageCenter + 10, right: 14 },
-                });
-                finalY2 = doc.autoTable.previous.finalY;
-            }
-            
-            y = Math.max(finalY1, finalY2) + 12;
-        }
-    }
-
-    doc.save(`listas_equipos_${selectedSport}.pdf`);
-    showMessage("PDF de Listas de Equipos generado.");
-};
-
-
             const visibleLeagues = leagues.filter(l => l.tournamentId === selectedTournamentId);
             const visibleLeagueIds = visibleLeagues.map(l => l.id);
             const visibleTeams = teams.filter(t => visibleLeagueIds.includes(t.leagueId));
@@ -1671,139 +1235,109 @@ ${message}
             const visiblePlayers = players.filter(p => visibleTeamIds.includes(p.teamId));
             const visibleMatches = matches.filter(m => visibleLeagueIds.includes(m.leagueId));
 
-            const AdminPanel = () => {
-                return (
-                    <div className="p-4 space-y-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border-t-4 border-[#CE0E2D]">
-                        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Panel de Administrador</h2>
-                
-                        {/* --- Gestión de Torneos --- */}
-                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
-                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Gestión de Torneos</h3>
-                            <div className="flex flex-wrap items-center gap-4">
-                                <button onClick={createLeaguesAndTeams} className="btn-primary">
-                                    <PlusIcon className="w-5 h-5 mr-2" /> Crear Nuevo Torneo
-                                </button>
-                                <button onClick={handleDeleteTournament} className="btn-danger" disabled={!selectedTournamentId}>
-                                    <TrashIcon className="w-5 h-5 mr-2" /> Eliminar Torneo Actual
-                                </button>
+            const AdminPanel = ({ onAddNewTeam }) => (
+                <div className="p-4 space-y-6">
+                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4">Panel de Administración</h2>
+                    
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Seleccionar Torneo</h3>
+                        {tournaments.length > 0 ? (
+                            <div className="flex items-center space-x-4">
+                                <select value={selectedTournamentId} onChange={(e) => setSelectedTournamentId(e.target.value)} className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#101097] bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white transition-colors">
+                                    {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                                <button onClick={handleDeleteTournament} className="btn-danger flex items-center"><TrashIcon className="inline-block w-5 h-5 mr-2" />Eliminar Torneo</button>
                             </div>
-                            {tournaments.length > 0 && (
-                                 <p className="text-sm text-gray-600 dark:text-gray-400">Torneo actual: <span className="font-bold">{tournaments.find(t => t.id === selectedTournamentId)?.name}</span></p>
-                            )}
-                        </div>
-                
-                        {/* --- Gestión de Calendario --- */}
-                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
-                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Gestión de Calendario</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Generar Calendario Base */}
-                                <div className="space-y-2">
-                                    <label htmlFor="schedule-start" className="font-semibold">Fecha de Inicio (Calendario Base)</label>
-                                    <input id="schedule-start" type="date" value={scheduleStartDate} onChange={e => setScheduleStartDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
-                                    <button onClick={() => generateSchedule(visibleLeagues, visibleTeams, true)} className="btn-primary w-full mt-2">Generar Calendario Base</button>
-                                </div>
-                                {/* Extender Calendario */}
-                                <div className="space-y-2">
-                                    <label htmlFor="schedule-end" className="font-semibold">Extender hasta Fecha</label>
-                                    <input id="schedule-end" type="date" value={scheduleEndDate} onChange={e => setScheduleEndDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
-                                    <button onClick={() => generateSchedule(visibleLeagues, visibleTeams, false)} className="btn-primary w-full mt-2">Extender Calendario</button>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4 pt-4 border-t dark:border-gray-600">
-                                 <button onClick={() => handleDeleteSchedule(visibleLeagueIds)} className="btn-danger">Borrar Calendario del Torneo</button>
-                                 <div className="flex items-center gap-2">
-                                    <input type="date" value={postponeMatchDate} onChange={e => setPostponeMatchDate(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
-                                    <button onClick={() => handlePostponeMatchday(postponeMatchDate, visibleLeagues)} className="btn-danger">Posponer Jornada</button>
-                                 </div>
-                            </div>
-                        </div>
-                
-                        {/* --- Reportes PDF --- */}
-                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
-                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Generar Reportes PDF</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label htmlFor="upcoming-date" className="font-semibold">Próximos Partidos</label>
-                                    <input id="upcoming-date" type="date" value={upcomingMatchesDate} onChange={e => setUpcomingMatchesDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
-                                    <button onClick={() => generateUpcomingMatchesPdf(visibleMatches)} className="btn-primary w-full mt-2">Generar PDF</button>
-                                </div>
-                                <div className="space-y-2">
-                                    <label htmlFor="referee-date" className="font-semibold">Cédula de Árbitro</label>
-                                    <input id="referee-date" type="date" value={refereeMatchDate} onChange={e => setRefereeMatchDate(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700" />
-                                    <button onClick={() => generateRefereeSheetPdf(visibleMatches, visiblePlayers)} className="btn-primary w-full mt-2">Generar PDF</button>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="font-semibold">Clasificación y Goleo</label>
-                                    <button onClick={() => generateStandingsAndTopScorersPdf(visibleLeagues, visibleTeams, visibleMatches, visiblePlayers)} className="btn-primary w-full mt-2">Generar PDF Completo</button>
-                                </div>
-                                <div className="space-y-2">
-                                    <label htmlFor="roster-sport" className="font-semibold">Listas de Equipos por Deporte</label>
-                                    <select id="roster-sport" value={rosterSport} onChange={e => setRosterSport(e.target.value)} className="w-full p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700">
-                                        <option value="">-- Seleccionar Deporte --</option>
-                                        {[...new Set(visibleLeagues.map(l => l.sport))].sort().map(sport => <option key={sport} value={sport}>{sport}</option>)}
-                                    </select>
-                                    <button onClick={() => generateTeamRostersPdf(rosterSport)} className="btn-primary w-full mt-2">Generar PDF</button>
-                                </div>
-                            </div>
-                        </div>
+                        ) : (
+                            <p className="text-center text-gray-500 dark:text-gray-400 py-4">No hay torneos creados. Crea uno para empezar.</p>
+                        )}
+                    </div>
 
-                        {/* --- Gestión de Ligas y Partidos --- */}
-                        <div className="space-y-4 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-inner">
-                            <h3 className="text-2xl font-bold text-[#101097] dark:text-blue-300">Ligas y Partidos</h3>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Crear Nuevo Torneo</h3>
+                        <p className="text-gray-600 dark:text-gray-300">Creará un nuevo torneo con su propio conjunto de ligas y equipos. Los torneos existentes no se verán afectados.</p>
+                        <div className="flex items-center space-x-4">
+                            <div className="relative flex-grow">
+                                <select id="sport-select" value={selectedSport} onChange={(e) => setSelectedSport(e.target.value)} className="w-full p-3 pl-10 pr-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#101097] bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white transition-colors">
+                                    {['Fútbol', 'Básquetbol', 'Voleibol'].map(sport => <option key={sport} value={sport}>{sport}</option>)}
+                                </select>
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-2xl"><SportIcon sport={selectedSport} /></div>
+                            </div>
+                            <button onClick={createLeaguesAndTeams} className="btn-primary flex items-center"><PlusIcon className="inline-block w-5 h-5 mr-2" />Crear Torneo</button>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Gestión del Torneo Actual</h3>
+                        {visibleLeagues.length === 0 ? <p className="text-center text-gray-500 dark:text-gray-400 py-4">No hay ligas en este torneo.</p> : visibleLeagues.map(league => <LeagueCard key={league.id} league={league} teams={visibleTeams.filter(t => t.leagueId === league.id)} players={visiblePlayers} appId={appId} db={window.firebaseApp.db} showMessage={showMessage} onMatchDayChange={handleMatchDayChange} onEditTeam={handleEditTeam} onAddPlayers={handleOpenAddPlayersModal} onAddNewTeam={onAddNewTeam} />)}
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Generar Calendario</h3>
+                        {visibleMatches.length > 0 ? (
                             <div className="space-y-4">
-                                <h4 className="text-xl font-semibold">Administrar Ligas</h4>
-                                <div className="space-y-3">
-                                    {visibleLeagues.sort(sortLeagues).map(league => (
-                                        <LeagueCard
-                                            key={league.id}
-                                            league={league}
-                                            teams={visibleTeams.filter(t => t.leagueId === league.id)}
-                                            players={visiblePlayers}
-                                            appId={appId}
-                                            db={window.firebaseApp.db}
-                                            showMessage={showMessage}
-                                            onMatchDayChange={handleMatchDayChange}
-                                            onEditTeam={handleEditTeam}
-                                            onAddPlayers={handleOpenAddPlayersModal}
-                                            onAddTeam={handleAddTeam}
-                                            onDeleteTeam={handleDeleteTeam}
-                                        />
-                                    ))}
+                                <div>
+                                    <p className="text-gray-600 dark:text-gray-300">Ya existe un calendario. Puedes extenderlo hasta una nueva fecha o borrarlo para empezar de nuevo.</p>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    <label htmlFor="end-date-input" className="text-sm font-medium text-gray-700 dark:text-gray-300">Extender hasta:</label>
+                                    <input type="date" id="end-date-input" value={scheduleEndDate} onChange={(e) => setScheduleEndDate(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                    <button onClick={() => generateSchedule(visibleLeagues, visibleTeams, false)} className="btn-primary flex items-center">Extender</button>
+                                </div>
+                                <div className="border-t dark:border-gray-700 pt-4">
+                                    <button onClick={() => handleDeleteSchedule(visibleLeagueIds)} className="btn-danger flex items-center"><TrashIcon className="inline-block w-5 h-5 mr-2" />Borrar Calendario Actual</button>
                                 </div>
                             </div>
-                            <div className="space-y-4 pt-4 border-t dark:border-gray-700">
-                                <h4 className="text-xl font-semibold">Administrar Partidos</h4>
-                                 <div className="flex items-center gap-4">
-                                    <select value={selectedLeagueFilter} onChange={(e) => setSelectedLeagueFilter(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 shadow-sm">
-                                        <option value="">Filtrar por Liga</option>
-                                        {visibleLeagues.sort(sortLeagues).map(league => <option key={league.id} value={league.id}>{league.name}</option>)}
-                                    </select>
-                                    <select value={selectedDateFilter} onChange={(e) => setSelectedDateFilter(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 shadow-sm">
-                                        <option value="">Filtrar por Fecha</option>
-                                        {[...new Set(visibleMatches.map(m => m.date))].sort().map(date => <option key={date} value={date}>{date}</option>)}
-                                    </select>
+                        ) : (
+                            <div>
+                                <p className="text-gray-600 dark:text-gray-300">Selecciona una fecha de inicio y genera el calendario para el torneo actual.</p>
+                                <div className="flex items-center space-x-4 mt-4">
+                                    <label htmlFor="start-date-input" className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Inicio:</label>
+                                    <input type="date" id="start-date-input" value={scheduleStartDate} onChange={(e) => setScheduleStartDate(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                    <button onClick={() => generateSchedule(visibleLeagues, visibleTeams, true)} className="btn-primary flex items-center"><CalendarIcon className="inline-block w-5 h-5 mr-2" />Generar Calendario</button>
                                 </div>
-                                <MatchesView
-                                    matches={visibleMatches}
-                                    leagues={visibleLeagues}
-                                    teams={visibleTeams}
-                                    players={visiblePlayers}
-                                    getLeagueName={getLeagueName}
-                                    getTeamName={getTeamName}
-                                    getPlayersByTeam={getPlayersByTeam}
-                                    appId={appId}
-                                    db={window.firebaseApp.db}
-                                    showMessage={showMessage}
-                                    selectedDateFilter={selectedDateFilter}
-                                    selectedLeagueFilter={selectedLeagueFilter}
-                                />
+                            </div>
+                        )}
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Informes del Torneo</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-gray-600 dark:text-gray-300 mb-2">Generar un reporte de próximos partidos para una fecha específica.</p>
+                                <div className="flex items-center space-x-4">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha:</label>
+                                    <input type="date" value={upcomingMatchesDate} onChange={(e) => setUpcomingMatchesDate(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                    <button onClick={() => generateUpcomingMatchesPdf(visibleMatches)} className="btn-primary">PDF Próximos Partidos</button>
+                                </div>
+                            </div>
+                            <div className="border-t dark:border-gray-700 pt-4">
+                                 <p className="text-gray-600 dark:text-gray-300 mb-2">Generar un reporte completo de clasificación y goleo.</p>
+                                <button onClick={() => generateStandingsAndTopScorersPdf(visibleLeagues, visibleTeams, visibleMatches, visiblePlayers)} className="btn-primary">PDF Clasificación y Goleo</button>
                             </div>
                         </div>
                     </div>
-                );
-            }
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Cédula de Partidos</h3>
+                        <p className="text-gray-600 dark:text-gray-300">Generar una cédula para una fecha específica del torneo actual.</p>
+                        <div className="flex items-center space-x-4">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha del Partido:</label>
+                            <input type="date" value={refereeMatchDate} onChange={(e) => setRefereeMatchDate(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+                            <button onClick={() => generateRefereeSheetPdf(visibleMatches, visiblePlayers)} className="btn-primary">Generar Cédula</button>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Registro de Partidos</h3>
+                        <div className="flex items-center space-x-4 mb-4">
+                            <input type="date" value={selectedDateFilter} onChange={(e) => setSelectedDateFilter(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Filtrar por fecha" />
+                            <select value={selectedLeagueFilter} onChange={(e) => setSelectedLeagueFilter(e.target.value)} className="p-2 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <option value="">Todas las Ligas</option>
+                                {visibleLeagues.sort(sortLeagues).map(league => <option key={league.id} value={league.id}>{league.name}</option>)}
+                            </select>
+                        </div>
+                        <MatchesView matches={visibleMatches} leagues={visibleLeagues} teams={visibleTeams} players={visiblePlayers} getLeagueName={getLeagueName} getTeamName={getTeamName} getPlayersByTeam={getPlayersByTeam} appId={appId} db={window.firebaseApp.db} showMessage={showMessage} selectedDateFilter={selectedDateFilter} selectedLeagueFilter={selectedLeagueFilter} />
+                    </div>
+                </div>
+            );
 
-            const StandingsView = ({ onViewTeamDetails }) => (
+            const StandingsView = () => (
                 <div className="p-4 space-y-6">
                     <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4">Clasificaciones y Anotadores</h2>
                     
@@ -1838,11 +1372,11 @@ ${message}
                                 <div className="flex-1 space-y-6">
                                     <div>
                                         <h4 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">Clasificación</h4>
-                                        <StandingsTable standings={calculateStandings(league.id, visibleTeams, visibleMatches)} onViewTeamDetails={onViewTeamDetails} />
+                                        <StandingsTable standings={calculateStandings(league.id, visibleTeams, visibleMatches)} />
                                     </div>
                                     <div>
                                         <h4 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">Últimos Resultados</h4>
-                                        <ResultsList matches={visibleMatches.filter(m => m.leagueId === league.id)} getTeamName={getTeamName} getTeamLogo={getTeamLogo} onMatchClick={handleMatchClick} onViewTeamDetails={onViewTeamDetails} />
+                                        <ResultsList matches={visibleMatches.filter(m => m.leagueId === league.id)} getTeamName={getTeamName} getTeamLogo={getTeamLogo} onMatchClick={handleMatchClick} />
                                     </div>
                                 </div>
                                 <div className="lg:w-1/3">
@@ -1855,66 +1389,6 @@ ${message}
                 </div>
             );
 
-            const TeamDetailView = ({ teamId, teams, players, matches, getLeagueName, getTeamName, getTeamLogo, onViewMatchDetails, onBack }) => {
-                const team = teams.find(t => t.id === teamId);
-                if (!team) return <p className="text-center text-gray-500 dark:text-gray-400 py-8">Equipo no encontrado.</p>;
-
-                const teamPlayers = players.filter(p => p.teamId === teamId);
-                const teamUpcomingMatches = matches.filter(m =>
-                    (m.homeTeamId === teamId || m.awayTeamId === teamId) &&
-                    new Date(m.date) >= new Date() &&
-                    m.scoreHome === null // Only show upcoming matches
-                ).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4); // Get next 4 matches
-
-                return (
-                    <div className="p-4 space-y-6">
-                        <button onClick={onBack} className="btn-primary mb-4">← Volver a Clasificaciones</button>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-4 border-t-4 border-[#101097]">
-                            <div className="flex items-center space-x-4">
-                                <img src={team.logoUrl} alt={`Logo de ${team.name}`} className="w-20 h-20 rounded-full shadow-md" />
-                                <div>
-                                    <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{team.name}</h3>
-                                    <p className="text-gray-600 dark:text-gray-300">Liga: {getLeagueName(team.leagueId)}</p>
-                                </div>
-                            </div>
-
-                            <h4 className="text-2xl font-bold text-gray-900 dark:text-white mt-6">Integrantes</h4>
-                            {teamPlayers.length > 0 ? (
-                                <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                                    {teamPlayers.map(player => <li key={player.id}>{player.name} <span className="text-xs text-gray-500">({player.group})</span></li>)}
-                                </ul>
-                            ) : (
-                                <p className="text-gray-500 dark:text-gray-400">No hay jugadores registrados para este equipo.</p>
-                            )}
-
-                            <h4 className="text-2xl font-bold text-gray-900 dark:text-white mt-6">Próximos Partidos</h4>
-                            {teamUpcomingMatches.length > 0 ? (
-                                <div className="space-y-3">
-                                    {teamUpcomingMatches.map(match => (
-                                        <div key={match.id} onClick={() => onViewMatchDetails(match)} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg hover:shadow-md cursor-pointer transition-all duration-200">
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(match.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                            <div className="flex items-center justify-between mt-1">
-                                                <div className="flex-1 text-sm font-bold flex items-center">
-                                                    <img src={getTeamLogo(match.homeTeamId)} className="w-5 h-5 rounded-full mr-2 shadow-sm" />
-                                                    {getTeamName(match.homeTeamId)}
-                                                </div>
-                                                <span className="text-lg font-extrabold mx-3 text-[#101097] dark:text-blue-300">vs</span>
-                                                <div className="flex-1 text-sm font-bold flex items-center justify-end text-right">
-                                                    {getTeamName(match.awayTeamId)}
-                                                    <img src={getTeamLogo(match.awayTeamId)} className="w-5 h-5 rounded-full ml-2 shadow-sm" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-gray-500 dark:text-gray-400">No hay próximos partidos programados para este equipo.</p>
-                            )}
-                        </div>
-                    </div>
-                );
-            };
-
             const renderView = () => {
                 if (isLoading && !isAuthReady) {
                     return (
@@ -1925,8 +1399,8 @@ ${message}
                     );
                 }
                 switch (view) {
-                    case 'standings': return <StandingsView onViewTeamDetails={handleViewTeamDetails} />;
-                    case 'admin': return user ? <AdminPanel /> : (
+                    case 'standings': return <StandingsView />;
+                    case 'admin': return user ? <AdminPanel onAddNewTeam={handleAddNewTeam} /> : (
                         <div className="flex items-center justify-center h-[50vh]">
                             <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-sm text-center border-t-4 border-[#101097]">
                                 <h3 className="text-2xl font-bold mb-4">Acceso de Administrador</h3>
@@ -1937,17 +1411,16 @@ ${message}
                             </div>
                         </div>
                     );
-                    case 'teamDetail': return <TeamDetailView teamId={selectedTeamIdForDetail} teams={teams} players={players} matches={matches} getLeagueName={getLeagueName} getTeamName={getTeamName} getTeamLogo={getTeamLogo} onViewMatchDetails={handleMatchClick} onBack={() => setView('standings')} />;
-                    default: return <StandingsView onViewTeamDetails={handleViewTeamDetails} />;
+                    default: return <StandingsView />;
                 }
             };
 
             return (
                 <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
-                    <nav className="bg-[#CE0E2D] dark:bg-[#a80b24] p-4 shadow-lg sticky top-0 z-40 border-b-2 border-gray-900/20">
+                    <nav className="bg-[#facc15] dark:bg-[#f59e0b] p-4 shadow-lg sticky top-0 z-40 border-b-2 border-gray-900/20">
                         <div className="flex justify-between items-center max-w-7xl mx-auto">
                              <div className="flex items-center space-x-4">
-                                <span className="text-white font-bold text-xl">Ligas La Salle Primaria</span>
+                                <span className="text-gray-900 font-bold text-xl">Ligas La Salle Secundaria</span>
                             </div>
                             <div className="flex items-center space-x-1">
                                 <button onClick={() => setView('standings')} className={`nav-button ${view === 'standings' ? 'bg-black/10' : ''}`}><TrophyIcon className="inline-block w-5 h-5 mr-2" />Clasificación</button>
@@ -1964,86 +1437,39 @@ ${message}
                     <MatchDetailsModal match={matchDetails} onClose={() => setMatchDetails(null)} getPlayerName={getPlayerName} getTeamName={getTeamName} />
                     <EditTeamModal team={editingTeam} onClose={handleCloseEditTeam} onSave={handleUpdateTeam} showMessage={showMessage} />
                     <AddPlayersModal team={addingPlayersTeam} onClose={() => setAddingPlayersTeam(null)} onAdd={handleAddMultiplePlayers} showMessage={showMessage} />
+                    <Modal show={showModal} message={modalMessage} onClose={() => setShowModal(false)} />
                 </div>
             );
         };
 
-        const App = () => {
-            const [user, setUser] = useState(null);
-            const [appId, setAppId] = useState(null);
-            const [isAuthReady, setIsAuthReady] = useState(false);
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [showModal, setShowModal] = useState(false);
-            const [modalMessage, setModalMessage] = useState('');
-
-            const showMessage = (message) => { setModalMessage(message); setShowModal(true); };
-
-            useEffect(() => {
-                const initFirebase = async () => {
-                    try {
-                        const { initializeApp, getAuth, onAuthStateChanged, getFirestore } = window.firebaseModules;
-                        const firebaseConfig = { apiKey: "AIzaSyBHX9ezfBiEZhxIDZTr-OTB5hgKV-zt0G4", authDomain: "torneos-lasalle-2.firebaseapp.com", projectId: "torneos-lasalle-2", storageBucket: "torneos-lasalle-2.firebasestorage.app", messagingSenderId: "860168864523", appId: "1:860168864523:web:1da5a47fa8ccb20def980e" };
-                        const app = initializeApp(firebaseConfig);
-                        const auth = getAuth(app);
-                        setAppId('lasalle-primaria-deportes'); // ID para la base de datos de Primaria
-                        window.firebaseApp = { ...window.firebaseApp, app, auth, db: getFirestore(app) };
-
-                        onAuthStateChanged(auth, (user) => {
-                            setUser(user);
-                            setIsAuthReady(true);
-                        });
-                    } catch (e) {
-                        console.error("Firebase init error", e);
-                        setIsAuthReady(true);
-                        document.getElementById('root').innerHTML = `<div class="p-8 text-center text-red-500">Error: No se pudo cargar Firebase.</div>`;
-                    }
-                };
-                initFirebase();
-            }, []);
-
-            const handleLogin = async () => {
-                const { signInWithEmailAndPassword } = window.firebaseModules;
-                const auth = window.firebaseApp.auth;
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                    showMessage("Inicio de sesión exitoso.");
-                    sendTelegramNotification("Ha iniciado sesión en el modo administrador.", email);
-                } catch (error) {
-                    showMessage("Error al iniciar sesión: " + error.message);
-                }
-            };
-
-            const handleLogout = async () => {
-                const { signOut } = window.firebaseModules;
-                const auth = window.firebaseApp.auth;
-                try {
-                    await signOut(auth);
-                    showMessage("Sesión cerrada.");
-                } catch (error) {
-                    showMessage("Error al cerrar sesión: " + error.message);
-                }
-            };
-
-            return (
-                <DataProvider user={user} appId={appId} isAuthReady={isAuthReady}>
-                    <AppContent
-                        user={user}
-                        isAuthReady={isAuthReady}
-                        handleLogin={handleLogin}
-                        handleLogout={handleLogout}
-                        email={email}
-                        setEmail={setEmail}
-                        password={password}
-                        setPassword={setPassword}
-                        showMessage={showMessage}
-                    />
-                    <Modal show={showModal} message={modalMessage} onClose={() => setShowModal(false)} />
-                </DataProvider>
-            );
-        };
-
         ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+    <!-- Cargar los módulos de Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Exportar los módulos a la ventana global para que puedan ser usados en el script de tipo "text/babel"
+        window.firebaseModules = {
+            initializeApp,
+            getAuth,
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            signOut,
+            getFirestore,
+            doc,
+            getDoc,
+            addDoc,
+            setDoc,
+            updateDoc,
+            deleteDoc,
+            onSnapshot,
+            collection,
+            query,
+            where,
+            getDocs,
+        };
     </script>
 </body>
 </html>
