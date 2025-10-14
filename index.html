@@ -1306,76 +1306,156 @@ ${message}
                 }
 
                 const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
+                const doc = new jsPDF('p', 'mm', 'a4');
                 const pageCenter = doc.internal.pageSize.getWidth() / 2;
-                let y = 20;
 
                 const tournamentName = tournaments.find(t => t.id === selectedTournamentId)?.name || 'TORNEO';
-                doc.setFontSize(18).text(`PRÓXIMOS PARTIDOS - ${tournamentName.toUpperCase()}`, pageCenter, y, { align: 'center' });
-                y += 8;
-                doc.setFontSize(14).text(`FECHA: ${upcomingMatchesDate}`, pageCenter, y, { align: 'center' });
-                y += 15;
-
                 const filteredMatches = visibleMatches.filter(match => match.date === upcomingMatchesDate);
+
                 if (filteredMatches.length === 0) {
-                    doc.setFontSize(12).text("No hay partidos programados para esta fecha.", pageCenter, y, { align: 'center' });
+                    doc.setFontSize(12).text("No hay partidos programados para esta fecha.", pageCenter, 20, { align: 'center' });
                     doc.save(`proximos_partidos_${upcomingMatchesDate}.pdf`);
                     return;
                 }
 
-                const matchesByLeague = filteredMatches.reduce((acc, match) => {
-                    (acc[match.leagueId] = acc[match.leagueId] || []).push(match);
+                const matchesBySport = filteredMatches.reduce((acc, match) => {
+                    const league = leagues.find(l => l.id === match.leagueId);
+                    const sport = league ? league.sport : 'Desconocido';
+                    (acc[sport] = acc[sport] || []).push(match);
                     return acc;
                 }, {});
 
-                const sortedLeagueIds = Object.keys(matchesByLeague).sort((a, b) => {
-                    const leagueA = leagues.find(l => l.id === a);
-                    const leagueB = leagues.find(l => l.id === b);
-                    if (!leagueA || !leagueB) return 0;
-                    return sortLeagues(leagueA, leagueB);
-                });
+                const sportOrder = ['Fútbol', 'Básquetbol', 'Tocho', 'Voleibol'];
+                const sortedSports = Object.keys(matchesBySport).sort((a, b) => sportOrder.indexOf(a) - sportOrder.indexOf(b));
 
-                for (const leagueId of sortedLeagueIds) {
-                    const leagueName = getLeagueName(leagueId);
-                    const leagueMatches = matchesByLeague[leagueId];
+                let isFirstPage = true;
 
-                    if (y > 250) { doc.addPage(); y = 20; }
+                for (const sport of sortedSports) {
+                    const sportMatches = matchesBySport[sport];
+                    const matchesByLeague = sportMatches.reduce((acc, match) => {
+                        (acc[match.leagueId] = acc[match.leagueId] || []).push(match);
+                        return acc;
+                    }, {});
+                    const sortedLeagueIds = Object.keys(matchesByLeague).sort((a, b) => sortLeagues(leagues.find(l => l.id === a), leagues.find(l => l.id === b)));
 
-                    doc.setFontSize(12).setFont(undefined, 'bold').text(leagueName, 14, y);
-                    y += 8;
+                    if (sport === 'Fútbol') {
+                        if (!isFirstPage) doc.addPage();
+                        isFirstPage = false;
+                        let y = 20;
 
-                    for (const match of leagueMatches) {
-                        if (y > 270) { doc.addPage(); y = 20; }
-
-                        const [homeLogoResult, awayLogoResult] = await Promise.all([
-                            urlToB64(getTeamLogo(match.homeTeamId)),
-                            urlToB64(getTeamLogo(match.awayTeamId))
-                        ]);
-
-                        const logoSize = 8;
-                        const verticalAlign = y - (logoSize / 2) - 1;
-
-                        doc.setFontSize(10).setFont(undefined, 'normal');
-
-                        if (homeLogoResult) {
-                            doc.addImage(homeLogoResult.dataUrl, homeLogoResult.format.toUpperCase(), 20, verticalAlign, logoSize, logoSize);
-                        }
-                        doc.text(getTeamName(match.homeTeamId), 32, y);
-
-                        doc.text('vs', pageCenter, y, { align: 'center' });
-
-                        doc.text(getTeamName(match.awayTeamId), 178, y, { align: 'right' });
-                        if (awayLogoResult) {
-                            doc.addImage(awayLogoResult.dataUrl, awayLogoResult.format.toUpperCase(), 180, verticalAlign, logoSize, logoSize);
-                        }
-
+                        // Page Titles
+                        doc.setFontSize(20).setFont(undefined, 'bold').text(`PRÓXIMOS PARTIDOS - ${tournamentName.toUpperCase()}`, pageCenter, y, { align: 'center' });
+                        y += 8;
+                        doc.setFontSize(16).setFont(undefined, 'normal').text(`FECHA: ${upcomingMatchesDate}`, pageCenter, y, { align: 'center' });
                         y += 12;
+                        doc.setFontSize(22).setFont(undefined, 'bold').text(sport.toUpperCase(), pageCenter, y, { align: 'center' });
+                        y += 15;
+
+                        for (const leagueId of sortedLeagueIds) {
+                            const leagueName = getLeagueName(leagueId);
+                            const leagueMatches = matchesByLeague[leagueId];
+
+                            doc.setFontSize(14).setFont(undefined, 'bold').text(leagueName, pageCenter, y, { align: 'center' });
+                            y += 10;
+
+                            for (const match of leagueMatches) {
+                                if (y > 260) { // Avoid page break inside football page
+                                    console.error("Football content overflows page.");
+                                    continue;
+                                }
+                                const [homeLogoResult, awayLogoResult] = await Promise.all([
+                                    urlToB64(getTeamLogo(match.homeTeamId)),
+                                    urlToB64(getTeamLogo(match.awayTeamId))
+                                ]);
+
+                                const logoSize = 15;
+                                const teamNameFontSize = 16;
+                                const vsFontSize = 12;
+                                const rowHeight = 25;
+
+                                const verticalAlign = y + (rowHeight / 2) - (logoSize / 2);
+
+                                if (homeLogoResult) doc.addImage(homeLogoResult.dataUrl, homeLogoResult.format.toUpperCase(), 30, verticalAlign, logoSize, logoSize);
+                                doc.setFontSize(teamNameFontSize).setFont(undefined, 'bold');
+                                doc.text(getTeamName(match.homeTeamId), 50, y + (rowHeight / 2) + 2);
+
+                                doc.setFontSize(vsFontSize).setFont(undefined, 'normal').text('vs', pageCenter, y + (rowHeight / 2) + 2, { align: 'center' });
+
+                                const awayTeamName = getTeamName(match.awayTeamId);
+                                doc.setFontSize(teamNameFontSize);
+                                const awayTeamNameWidth = doc.getStringUnitWidth(awayTeamName) * doc.getFontSize() / doc.internal.scaleFactor;
+                                const logoRightMargin = 25;
+                                const logoX = doc.internal.pageSize.getWidth() - logoRightMargin - logoSize;
+                                if (awayLogoResult) {
+                                    doc.addImage(awayLogoResult.dataUrl, awayLogoResult.format.toUpperCase(), logoX, verticalAlign, logoSize, logoSize);
+                                }
+                                const textX = logoX - awayTeamNameWidth - 2; // 2mm padding
+                                doc.text(awayTeamName, textX, y + (rowHeight / 2) + 2);
+                                
+                                y += rowHeight;
+                            }
+                             y += 5; // Extra space between leagues
+                        }
+                    } else { // Other sports
+                        for (const leagueId of sortedLeagueIds) {
+                            if (!isFirstPage) doc.addPage();
+                            isFirstPage = false;
+                            let y = 25;
+
+                            doc.setFontSize(22).setFont(undefined, 'bold').text(`PRÓXIMOS PARTIDOS - ${tournamentName.toUpperCase()}`, pageCenter, y, { align: 'center' });
+                            y += 10;
+                            doc.setFontSize(18).setFont(undefined, 'normal').text(`FECHA: ${upcomingMatchesDate}`, pageCenter, y, { align: 'center' });
+                            y += 15;
+                            doc.setFontSize(24).setFont(undefined, 'bold').text(sport.toUpperCase(), pageCenter, y, { align: 'center' });
+                            y += 20;
+
+                            const leagueName = getLeagueName(leagueId);
+                            const leagueMatches = matchesByLeague[leagueId];
+                            doc.setFontSize(20).setFont(undefined, 'bold').text(leagueName, pageCenter, y, { align: 'center' });
+                            y += 20;
+
+                            for (const match of leagueMatches) {
+                                if (y > 240) { 
+                                    doc.addPage(); 
+                                    y = 40; // Reset y for new page, leaving space for titles
+                                }
+                                const [homeLogoResult, awayLogoResult] = await Promise.all([
+                                    urlToB64(getTeamLogo(match.homeTeamId)),
+                                    urlToB64(getTeamLogo(match.awayTeamId))
+                                ]);
+
+                                const logoSize = 25;
+                                const teamNameFontSize = 22;
+                                const vsFontSize = 18;
+                                const rowHeight = 55;
+
+                                const verticalAlign = y + (rowHeight / 2) - (logoSize / 2);
+
+                                if (homeLogoResult) doc.addImage(homeLogoResult.dataUrl, homeLogoResult.format.toUpperCase(), 20, verticalAlign, logoSize, logoSize);
+                                doc.setFontSize(teamNameFontSize).setFont(undefined, 'bold');
+                                doc.text(getTeamName(match.homeTeamId), 50, y + (rowHeight / 2) + 5);
+
+                                doc.setFontSize(vsFontSize).setFont(undefined, 'normal').text('vs', pageCenter, y + (rowHeight / 2) + 5, { align: 'center' });
+
+                                const awayTeamName = getTeamName(match.awayTeamId);
+                                doc.setFontSize(teamNameFontSize);
+                                const awayTeamNameWidth = doc.getStringUnitWidth(awayTeamName) * doc.getFontSize() / doc.internal.scaleFactor;
+                                const logoRightMargin = 15;
+                                const logoX = doc.internal.pageSize.getWidth() - logoRightMargin - logoSize;
+                                if (awayLogoResult) {
+                                    doc.addImage(awayLogoResult.dataUrl, awayLogoResult.format.toUpperCase(), logoX, verticalAlign, logoSize, logoSize);
+                                }
+                                const textX = logoX - awayTeamNameWidth - 5; // 5mm padding
+                                doc.text(awayTeamName, textX, y + (rowHeight / 2) + 5);
+                                
+                                y += rowHeight + 15;
+                            }
+                        }
                     }
-                    y += 5;
                 }
 
                 doc.save(`proximos_partidos_${upcomingMatchesDate}.pdf`);
-                showMessage("PDF de Próximos Partidos generado.");
+                showMessage("PDF de Próximos Partidos generado con el nuevo formato.");
             };
 
             const generateRefereeSheetPdf = async (visibleMatches, visiblePlayers) => {
