@@ -1544,22 +1544,29 @@ ${message}
             const generateStandingsAndTopScorersPdf = async (visibleLeagues, visibleTeams, visibleMatches, visiblePlayers) => {
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
-                let y = 10;
-                doc.setFontSize(18).text(`Reporte de Torneo: ${tournaments.find(t => t.id === selectedTournamentId)?.name || ''}`, 10, y);
-                y += 15;
+                const tournamentTitle = `Reporte de Torneo: ${tournaments.find(t => t.id === selectedTournamentId)?.name || ''}`;
 
                 const allStandings = visibleLeagues.flatMap(l => calculateStandings(l.id, visibleTeams, visibleMatches));
                 const allScorers = visibleLeagues.flatMap(l => calculateTopScorers(l.id, visibleMatches, visiblePlayers, visibleTeams));
                 const allLogoUrls = [...new Set([...allStandings.map(t => t.logoUrl), ...allScorers.map(s => s.logoUrl)])].filter(Boolean);
-                
+
                 const logoResults = await Promise.all(allLogoUrls.map(url => urlToB64(url)));
                 const logoMap = allLogoUrls.reduce((map, url, index) => {
                     map[url] = logoResults[index];
                     return map;
                 }, {});
 
+                let isFirstLeague = true;
                 for (const league of visibleLeagues.sort(sortLeagues)) {
-                    if (y > 250) { doc.addPage(); y = 15; }
+                    if (!isFirstLeague) {
+                        doc.addPage();
+                    }
+                    isFirstLeague = false;
+
+                    let y = 10;
+                    doc.setFontSize(18).text(tournamentTitle, 10, y);
+                    y += 15;
+
                     doc.setFontSize(16).text(`Liga: ${league.name}`, 14, y);
                     y += 10;
 
