@@ -262,6 +262,7 @@ export const getTeamShirtColor = (team, allTeams = []) => {
         else if (teamNameLower.includes('grizzlies')) candidateColorName = 'Azul Celeste';
         else if (teamNameLower.includes('pelicans')) candidateColorName = 'Oro';
         else if (teamNameLower.includes('spurs')) candidateColorName = 'Carbón';
+        else if (teamNameLower.includes('oaxaca')) candidateColorName = 'Jade';
         else if (teamNameLower.includes('méxico') || teamNameLower.includes('mexico')) candidateColorName = 'Verde Césped';
         else if (teamNameLower.includes('brasil')) candidateColorName = 'Amarillo Brillante';
         else if (teamNameLower.includes('argentina')) candidateColorName = 'Azul Celeste';
@@ -342,6 +343,7 @@ export const PRESET_THEMES = {
         { name: "Puebla", logoUrl: "./escudos/puebla.png", shirtColorName: "Azul Claro", shirtColorHex: "#81D4FA" },
         { name: "Veracruz", logoUrl: "./escudos/veracruz.png", shirtColorName: "Verde Césped", shirtColorHex: "#4CAF50" },
         { name: "Guanajuato", logoUrl: "./escudos/guanajuato.png", shirtColorName: "Rojo", shirtColorHex: "#D32F2F" },
+        { name: "Oaxaca", logoUrl: "./escudos/oaxaca.png", shirtColorName: "Jade", shirtColorHex: "#00897B" },
     ],
     "Selecciones (Países)": [
         { name: "México", logoUrl: "https://flagcdn.com/w160/mx.png", shirtColorName: "Verde Césped", shirtColorHex: "#4CAF50" },
